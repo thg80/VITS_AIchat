@@ -15,7 +15,7 @@ logger = logging.getLogger()
 fh = logging.FileHandler(filename='logger.log',encoding="utf-8",mode='a')
 fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s:%(message)s',datefmt='%m-%d %I:%M:%S'))
 logger.addHandler(fh)
-
+logger.setLevel(logging.INFO)
 
 param_path = r'FastASR/models'
 audio_path = r'output.wav'

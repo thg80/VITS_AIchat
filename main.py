@@ -1,14 +1,22 @@
 import argparse
 import asyncio
+import configparser
 import json
 import logging
 import os
 import subprocess
+import threading
 import time
+import wave
 
+import fastasr
+import keyboard
 import poe
+import soundfile as sf
 import speech_recognition as sr
 import torch
+from colorama import Back, Fore, Style
+from pyaudio import PyAudio, paInt16
 from scipy.io import wavfile
 from torch import LongTensor, no_grad
 
@@ -17,23 +25,18 @@ import utils
 from models import SynthesizerTrn
 from text import text_to_sequence
 
-PoeTOKEN = "cT6tIVQj1MZiVKMepOlkEw%3D%3D"
-Bot = "capybara"
-chatGPTMaxTokens = 512
-chatGPTTemperature = 0.5
-chatGPTInitPrompt = "请扮演一个AI虚拟主播。不要强调你是AI虚拟主播，不要答非所问，不要有重复的语句，回答精简一点。这是观众的提问："
-
-vitsNoiseScale = 0.6
-vitsNoiseScaleW = 0.668
-vitsLengthScale = 1.2
-model_path = r"./model/Genshin/"
-checkpoint_model = r"G_953000.pth"  #todo: 自动选择pth
 
 _init_vits_model = False
 hps_ms = None
 device = None
 net_g_ms = None
 pattern = r"。！？\n,;:]+|[.?!]+(?=[\s\n]|$))"
+
+logging.basicConfig(level=logging.DEBUG,format='%(levelname)s:%(message)s')
+logger = logging.getLogger() 
+fh = logging.FileHandler(filename='logger.log',encoding="utf-8",mode='a')
+fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s:%(message)s',datefmt='%m-%d %I:%M:%S'))
+logger.addHandler(fh)
 
 poe.headers = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.58",
@@ -47,7 +50,13 @@ poe.headers = {
   "Upgrade-Insecure-Requests": "1"
 }
 #poe.logger.setLevel(logging.INFO)
-client = poe.Client(PoeTOKEN, proxy="http://127.0.0.1:7890")
+
+with open('config.json','r') as f:
+    config = json.load(f)
+
+
+client = poe.Client(config['Poe']['token'], config['Poe']['proxy'])
+
 
 async def handle_result(task):
     status, audios, time = task.result()
@@ -62,7 +71,7 @@ async def send_chatgpt_request(send_msg):
     print("[AI]: ",flush=True)
 
 
-    for chunk in client.send_message(Bot,send_msg,with_chat_break=False):
+    for chunk in client.send_message(config['Poe']['bot'],send_msg,with_chat_break=False):
         print(chunk["text_new"],end="",flush=True)
         sentence = sentence + chunk["text_new"]
 
@@ -73,7 +82,7 @@ async def send_chatgpt_request(send_msg):
             else:
                 vits_sentence = sentence
             sentence = ""
-            task = asyncio.create_task(vits(vits_sentence, 0, 124, vitsNoiseScale, vitsNoiseScaleW, vitsLengthScale))
+            task = asyncio.create_task(vits(vits_sentence, 0, 124, config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale']))
             while not task.done():
                 await asyncio.sleep(0.1)
 
@@ -98,8 +107,7 @@ def init_vits_model():
     parser.add_argument("--colab", action="store_true", default=False, help="share gradio app")
     args = parser.parse_args()
     device = torch.device(args.device)
-    
-    hps_ms = utils.get_hparams_from_file(model_path+r'/config.json')
+    hps_ms = utils.get_hparams_from_file(config['Vic']['model_path']+r'/config.json')
     net_g_ms = SynthesizerTrn(
         len(hps_ms.symbols),
         hps_ms.data.filter_length // 2 + 1,
@@ -108,7 +116,7 @@ def init_vits_model():
         **hps_ms.model)
     _ = net_g_ms.eval().to(device)
     speakers = hps_ms.speakers
-    model, optimizer, learning_rate, epochs = utils.load_checkpoint(model_path+checkpoint_model, net_g_ms, None)
+    model, optimizer, learning_rate, epochs = utils.load_checkpoint(config['Vic']['model_path'] + config['Vic']['checkpoint_model'], net_g_ms, None)
     _init_vits_model = True
 
 def get_text(text, hps):
@@ -155,13 +163,6 @@ async def start():
             return
         
         await send_chatgpt_request(input_str)
-
-        '''
-        status, audios, time = vits(result, 0, 124, vitsNoiseScale, vitsNoiseScaleW, vitsLengthScale)
-        print("VITS : ", status, time)
-        wavfile.write("output.wav", audios[0], audios[1])
-        play_audio("output.wav")
-        '''
 
 async def main():
     if not _init_vits_model:

@@ -1,0 +1,14 @@
+{
+    "Poe": {
+        "token": "cT6tIVQj1MZiVKMepOlkEw%3D%3D",
+        "bot": "capybara",
+        "proxy": "http://127.0.0.1:7890"
+    },
+    "Vic": {
+        "vitsNoiseScale": 0.6,
+        "vitsNoiseScaleW": 0.668,
+        "vitsLengthScale": 1.2,
+        "model_path": "./model/Genshin",
+        "checkpoint_model": "/G_953000.pth"
+    }
+}
