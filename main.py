@@ -78,12 +78,6 @@ class MyThread(threading.Thread):
         except Exception:
             return None
 
-async def handle_result(task):
-    status, audios, time = task.result()
-    print("--------------------------------")
-    print("VITS : ", status, time)
-    wavfile.write("output.wav", audios[0], audios[1])
-    play_audio("output.wav")
 
 async def send_chatgpt_request(send_msg):
     sentence = ""
@@ -95,25 +89,30 @@ async def send_chatgpt_request(send_msg):
         print(Fore.GREEN+chunk["text_new"],end="",flush=True)
         sentence = sentence + chunk["text_new"]
 
-        if sentence.endswith(".") or sentence.endswith("。") or sentence.endswith("?") or sentence.endswith("!") or sentence.endswith("？") or sentence.endswith("！") or sentence.endswith("\n"):
+        if sentence.endswith(".") or sentence.endswith("。") or sentence.endswith("?") or sentence.endswith("!") or sentence.endswith("？") or sentence.endswith("！") or sentence.endswith(":") or sentence.endswith("："):
             #断句
+            if sentence == "":
+                continue
             if vits_sentence != "":
                 vits_sentence = sentence.strip(vits_sentence)
             else:
                 vits_sentence = sentence
             sentence = ""
-            print(Fore.RESET)
             task = asyncio.create_task(vits(vits_sentence, 0,config['Vic']['speaker_id'], config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale']))
             while not task.done():
                 await asyncio.sleep(0.05)
 
             status, audios, time = task.result()  # 获取任务的返回值
+            if task.result() == None:
+                logger.warning(task.result())
+                continue
             #print("VITS-", status, time)
             if task.done():
+                print(Fore.RESET)
                 logger.info("VITS-{}{}".format(status,time))
                 wavfile.write("output.wav", audios[0], audios[1])
                 play_audio("output.wav")
-                return
+    print()
     return
 
 
@@ -241,11 +240,14 @@ async def start():
     while True:
         #文字输入
         if config['input_mode']:
-            print("请输入 > " , end='')
+            print(Fore.RESET + "请输入 > ")
             input_str = await asyncio.get_event_loop().run_in_executor(None, input, '')
             if "切换输入" in input_str or "切换语音输入" in input_str:
                 config['input_mode'] = 0
                 continue
+            if "清除对话" in input_str:
+                client.send_chat_break("capybara")
+                play_audio("done.wav")
             if "关闭AI" in input_str:
                 client.send_chat_break("capybara")
                 return
@@ -258,7 +260,7 @@ async def start():
             audio_thread = None
             stop_event = threading.Event()
             while True:
-                if keyboard.is_pressed("ctrl+t"):
+                if keyboard.is_pressed(config['hotkey']):
                     if not is_recording:
                         is_recording = True
                         audio_thread = MyThread(target=audio_record, args=(record_path,stop_event))
@@ -274,7 +276,12 @@ async def start():
                     if result is not None:
                         if "切换输入" in result:
                             config['input_mode'] = 1
+                            play_audio("done.wav")
                             break
+                        if "清除对话" in input_str:
+                            client.send_chat_break("capybara")
+                            play_audio("done.wav")
+                            continue
                         await send_chatgpt_request(result)
                     break
 
