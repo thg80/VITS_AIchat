@@ -6,6 +6,14 @@
         "bot": "capybara",
         "proxy": "http://127.0.0.1:7890"
     },
+    "Chatgpt": {
+        "url": "https://aigptx.top/v1",
+        "api-key": "",
+        "model": "text-davinci-003",
+        "MaxTokens": 512,
+        "temperature": 0.5,
+        "InitPrompt": "请扮演一个AI虚拟助手。不要强调你是AI虚拟助手，不要答非所问，不要有重复的语句，回答精简一点。这是提问："
+    },
     "Vic": {
         "vitsNoiseScale": 0.6,
         "vitsNoiseScaleW": 0.668,

@@ -12,6 +12,10 @@
 | vitsNoiseScaleW | 控制音素发音长度        |
 | vitsLengthScale | 控制整体语速            |
 
+## TODO
+
+- [ ] 添加其他 api，暂定 https://aigptx.top/ （用法同 chatgpt）
+
 ## 日志/记录
 
 | 日期     | 说明           |

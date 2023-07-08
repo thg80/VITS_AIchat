@@ -10,6 +10,7 @@ import wave
 
 import keyboard
 import poe
+import requests
 import soundfile as sf
 import speech_recognition as sr
 import torch
@@ -79,11 +80,10 @@ class MyThread(threading.Thread):
             return None
 
 
-async def send_chatgpt_request(send_msg):
+async def send_poe_request(send_msg):
     sentence = ""
     vits_sentence = "" #以读句
     print("[AI]: ",end="",flush=True)
-
 
     for chunk in client.send_message(config['Poe']['bot'],send_msg,with_chat_break=False):
         print(Fore.GREEN+chunk["text_new"],end="",flush=True)
@@ -115,6 +115,15 @@ async def send_chatgpt_request(send_msg):
     print()
     return
 
+#未完成
+async def send_chatgpt_request(send_msg):
+    data = json.dumps({ "model": config['Chatgpt']['model'], "prompt": config['Chatgpt']['InitPrompt']{send_msg}, "max_tokens": config['Chatgpt']['MaxTokens'], "temperature": config['Chatgpt']['temperature']})
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer "+ config['Chatgpt']['api-key']}
+    response = requests.post(config['Chatgpt']['url'], data=data, headers=headers, proxies='')
+    output = response.json()
+    result = output["choices"][0]["text"].strip("\n")
+    print("[AI回复] : ", result)
+    return result
 
 
 def play_audio(audio_file_name):
@@ -252,7 +261,7 @@ async def start():
                 client.send_chat_break("capybara")
                 return
             
-            await send_chatgpt_request(input_str)
+            await send_poe_request(input_str)
         #语音输入
         else:
             print(Fore.YELLOW +"Converting..."+ Style.RESET_ALL)
@@ -282,7 +291,7 @@ async def start():
                             client.send_chat_break("capybara")
                             play_audio("done.wav")
                             continue
-                        await send_chatgpt_request(result)
+                        await send_poe_request(result)
                     break
 
 async def main():
