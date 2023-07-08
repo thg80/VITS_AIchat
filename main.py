@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import configparser
 import json
 import logging
 import os
@@ -9,7 +8,6 @@ import threading
 import time
 import wave
 
-import fastasr
 import keyboard
 import poe
 import soundfile as sf
@@ -21,22 +19,30 @@ from scipy.io import wavfile
 from torch import LongTensor, no_grad
 
 import commons
+import fastasr
 import utils
 from models import SynthesizerTrn
 from text import text_to_sequence
-
 
 _init_vits_model = False
 hps_ms = None
 device = None
 net_g_ms = None
 pattern = r"。！？\n,;:]+|[.?!]+(?=[\s\n]|$))"
-
+limitation = 500
 logging.basicConfig(level=logging.DEBUG,format='%(levelname)s:%(message)s')
 logger = logging.getLogger() 
 fh = logging.FileHandler(filename='logger.log',encoding="utf-8",mode='a')
 fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s:%(message)s',datefmt='%m-%d %I:%M:%S'))
 logger.addHandler(fh)
+logger.setLevel(logging.INFO)
+
+vic2text_path = r'FastASR/models'
+record_path = r'record.wav'
+CHUNK = 1024
+FORMAT = paInt16  # 16bit编码格式
+CHANNELS = 1  # 单声道
+RATE = 16000  # 16000采样频率
 
 poe.headers = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.58",
@@ -49,7 +55,6 @@ poe.headers = {
   "Sec-Ch-Ua-Platform": "\"Windows\"",
   "Upgrade-Insecure-Requests": "1"
 }
-#poe.logger.setLevel(logging.INFO)
 
 with open('config.json','r') as f:
     config = json.load(f)
@@ -57,6 +62,21 @@ with open('config.json','r') as f:
 
 client = poe.Client(config['Poe']['token'], config['Poe']['proxy'])
 
+class MyThread(threading.Thread):
+
+    def __init__(self, target=None, args=()):
+        super(MyThread, self).__init__()
+        self.func = target
+        self.args = args
+
+    def run(self):
+        self.result = self.func(*self.args)
+
+    def get_result(self):
+        try:
+            return self.result
+        except Exception:
+            return None
 
 async def handle_result(task):
     status, audios, time = task.result()
@@ -68,28 +88,33 @@ async def handle_result(task):
 async def send_chatgpt_request(send_msg):
     sentence = ""
     vits_sentence = "" #以读句
-    print("[AI]: ",flush=True)
+    print("[AI]: ",end="",flush=True)
 
 
     for chunk in client.send_message(config['Poe']['bot'],send_msg,with_chat_break=False):
-        print(chunk["text_new"],end="",flush=True)
+        print(Fore.GREEN+chunk["text_new"],end="",flush=True)
         sentence = sentence + chunk["text_new"]
 
-        if sentence.endswith(".") or sentence.endswith(",") or sentence.endswith("。") or sentence.endswith("?") or sentence.endswith("!") or sentence.endswith("？") or sentence.endswith("！") or sentence.endswith("，"):
+        if sentence.endswith(".") or sentence.endswith("。") or sentence.endswith("?") or sentence.endswith("!") or sentence.endswith("？") or sentence.endswith("！") or sentence.endswith("\n"):
             #断句
             if vits_sentence != "":
                 vits_sentence = sentence.strip(vits_sentence)
             else:
                 vits_sentence = sentence
             sentence = ""
-            task = asyncio.create_task(vits(vits_sentence, 0, 124, config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale']))
+            print(Fore.RESET)
+            task = asyncio.create_task(vits(vits_sentence, 0,config['Vic']['speaker_id'], config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale']))
             while not task.done():
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
 
             status, audios, time = task.result()  # 获取任务的返回值
-            print("VITS-", status, time)
-            wavfile.write("output.wav", audios[0], audios[1])
-            play_audio("output.wav")
+            #print("VITS-", status, time)
+            if task.done():
+                logger.info("VITS-{}{}".format(status,time))
+                wavfile.write("output.wav", audios[0], audios[1])
+                play_audio("output.wav")
+                return
+    return
 
 
 
@@ -151,18 +176,107 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
 
     return "生成成功!", (22050, audio), f"生成耗时 {round(time.perf_counter()-start, 2)} s"
 
+#语音录制
+def audio_record(out_file,stop_event):
+    play_audio("trigger.wav")
+    time.sleep(0.1)
+    p = PyAudio()
+    # 创建音频流
+    stream = p.open(format=FORMAT,  # 音频流wav格式
+                    channels=CHANNELS,  # 单声道
+                    rate=RATE,  # 采样率16000
+                    input=True,
+                    frames_per_buffer=CHUNK)
+    frames = []  # 录制的音频流
+    # 录制音频数据
+    while not stop_event.is_set():
+        data = stream.read(CHUNK)
+        frames.append(data)
+        print("-",end='',flush=True)
 
+    # 录制完成
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    print(">",end='',flush=True)
+    # 将录制的音频数据写入文件
+    wf = wave.open(out_file, 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(frames))
+    wf.close()
+    logger.info("录制完成！")
+    play_audio("done.wav")
+    return audio_to_text()
+
+#转文字
+def audio_to_text():
+    data, samplerate = sf.read(record_path, dtype='int16')
+    audio_len = data.size / samplerate
+    logger.info(Fore.YELLOW + "Audio time is {}s. len is {}.".format(audio_len, data.size))
+    if audio_len > 0.1:
+        start_time = time.time()
+        p = fastasr.Model(vic2text_path, 3)
+        end_time = time.time()
+        logger.info("Model 初始化 takes {:.2}s.".format(end_time - start_time) + Style.RESET_ALL)
+        start_time = time.time()
+        p.reset()
+        result = p.forward(data)
+        end_time = time.time()
+        logger.info(Fore.GREEN+'Result: "{}".'.format(result) + Style.RESET_ALL)
+        print(Fore.GREEN+'Result: "{}".'.format(result) + Style.RESET_ALL)
+        logger.info(Fore.YELLOW + "Model 推理 takes {:.2}s.".format(end_time - start_time) + Style.RESET_ALL)
+        if result != '':
+            return(result)
+        else:
+            logger.warning(Back.RED +"输入为空" + Style.RESET_ALL)
+            return None
+    else:
+        logger.warning(Back.RED +"语音时间不足0.1s" + Style.RESET_ALL)
+        return None
 
 
 async def start():
     while True:
-        print("请输入 >")
-        input_str = await asyncio.get_event_loop().run_in_executor(None, input, '')
-        if "关闭AI" in input_str:
-            client.send_chat_break("capybara")
-            return
-        
-        await send_chatgpt_request(input_str)
+        #文字输入
+        if config['input_mode']:
+            print("请输入 > " , end='')
+            input_str = await asyncio.get_event_loop().run_in_executor(None, input, '')
+            if "切换输入" in input_str or "切换语音输入" in input_str:
+                config['input_mode'] = 0
+                continue
+            if "关闭AI" in input_str:
+                client.send_chat_break("capybara")
+                return
+            
+            await send_chatgpt_request(input_str)
+        #语音输入
+        else:
+            print(Fore.YELLOW +"Converting..."+ Style.RESET_ALL)
+            is_recording = False
+            audio_thread = None
+            stop_event = threading.Event()
+            while True:
+                if keyboard.is_pressed("ctrl+t"):
+                    if not is_recording:
+                        is_recording = True
+                        audio_thread = MyThread(target=audio_record, args=(record_path,stop_event))
+                        audio_thread.start()
+                        logger.info("开始录制...")
+                        print(Fore.YELLOW + "开始录制..." + Style.RESET_ALL)
+                        
+                elif is_recording:
+                    is_recording = False
+                    stop_event.set()
+                    audio_thread.join()
+                    result = audio_thread.get_result()
+                    if result is not None:
+                        if "切换输入" in result:
+                            config['input_mode'] = 1
+                            break
+                        await send_chatgpt_request(result)
+                    break
 
 async def main():
     if not _init_vits_model:

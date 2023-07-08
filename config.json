@@ -1,4 +1,5 @@
 {
+    "input_mode": 1,
     "Poe": {
         "token": "cT6tIVQj1MZiVKMepOlkEw%3D%3D",
         "bot": "capybara",
@@ -8,6 +9,7 @@
         "vitsNoiseScale": 0.6,
         "vitsNoiseScaleW": 0.668,
         "vitsLengthScale": 1.2,
+        "speaker_id": 160,
         "model_path": "./model/Genshin",
         "checkpoint_model": "/G_953000.pth"
     }
