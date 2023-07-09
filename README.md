@@ -5,7 +5,9 @@
 
 ## 使用说明
 
-- 更改 **BASEconfig.json** -> **config.json** 并填入api-key
+##### Langchain
+
+- 更改 **BASEconfig.json** -> **config.json** 并填入 api-key
 - 前往 [SerpApi: Google Search API](https://serpapi.com/) 获取 **serpapi-key**
 - (可选) 前往 [Members (openweathermap.org)](https://home.openweathermap.org/api_keys) 获取 **openweathermap-api-key**
 
