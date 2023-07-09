@@ -1,0 +1,27 @@
+{
+    "input_mode": 1,
+    "hotkey": "ctrl+t",
+    "Poe": {
+        "token": "",
+        "bot": "capybara",
+        "proxy": "http://127.0.0.1:7890"
+    },
+    "Chatgpt": {
+        "url": "https://aigptx.top/v1",
+        "api-key": "",
+        "serpapi-key": "",
+        "openweathermap-api-key": "",
+        "model": "gpt-3.5-turbo",
+        "MaxTokens": 512,
+        "temperature": 0.5,
+        "InitPrompt": "请扮演一个AI虚拟助手。不要强调你是AI虚拟助手，不要答非所问，不要有重复的语句，回答精简一点。这是提问："
+    },
+    "Vic": {
+        "vitsNoiseScale": 0.6,
+        "vitsNoiseScaleW": 0.668,
+        "vitsLengthScale": 0.7,
+        "speaker_id": 165,
+        "model_path": "./model/Genshin",
+        "checkpoint_model": "/G_953000.pth"
+    }
+}
