@@ -10,7 +10,6 @@ import wave
 
 import keyboard
 import poe
-import requests
 import soundfile as sf
 import speech_recognition as sr
 import torch
@@ -19,6 +18,7 @@ from pyaudio import PyAudio, paInt16
 from scipy.io import wavfile
 from torch import LongTensor, no_grad
 
+import bot
 import commons
 import fastasr
 import utils
@@ -29,8 +29,8 @@ _init_vits_model = False
 hps_ms = None
 device = None
 net_g_ms = None
-pattern = r"。！？\n,;:]+|[.?!]+(?=[\s\n]|$))"
 limitation = 500
+
 logging.basicConfig(level=logging.DEBUG,format='%(levelname)s:%(message)s')
 logger = logging.getLogger() 
 fh = logging.FileHandler(filename='logger.log',encoding="utf-8",mode='a')
@@ -116,14 +116,6 @@ async def send_poe_request(send_msg):
     return
 
 #未完成
-async def send_chatgpt_request(send_msg):
-    data = json.dumps({ "model": config['Chatgpt']['model'], "prompt": config['Chatgpt']['InitPrompt']{send_msg}, "max_tokens": config['Chatgpt']['MaxTokens'], "temperature": config['Chatgpt']['temperature']})
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer "+ config['Chatgpt']['api-key']}
-    response = requests.post(config['Chatgpt']['url'], data=data, headers=headers, proxies='')
-    output = response.json()
-    result = output["choices"][0]["text"].strip("\n")
-    print("[AI回复] : ", result)
-    return result
 
 
 def play_audio(audio_file_name):

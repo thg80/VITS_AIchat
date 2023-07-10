@@ -23,6 +23,9 @@
 ## TODO
 
 - [ ] 添加其他 api，暂定 https://aigptx.top/ （用法同 chatgpt）[ post 方法无法流式输出 ]
+- [ ] 使用 Lainchain 进行记忆存储
+- [ ] 压缩记忆
+- [ ] (-) bot 切换
 
 ## 日志/记录
 
