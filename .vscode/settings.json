@@ -4,6 +4,30 @@
         "hparams",
         "langchain",
         "samplerate",
-        "unsqueeze"
-    ]
+        "unsqueeze",
+        "vectorstore"
+    ],
+    "isort.trace": "info",
+    "editor.formatOnSave": true,
+    // Using the light mode
+    "indentRainbow.indicatorStyle": "light",
+    // we use a simple 1 pixel wide line
+    "indentRainbow.lightIndicatorStyleLineWidth": 1,
+    // the same colors as above but more visible
+    "indentRainbow.colors": [
+        "rgba(255,255,64,0.3)",
+        "rgba(127,255,127,0.3)",
+        "rgba(255,127,255,0.3)",
+        "rgba(79,236,236,0.3)"
+    ],
+    "indentRainbow.updateDelay": 100,
+    // Example of regular expression in JSON (note double backslash to escape characters)
+    "indentRainbow.ignoreLinePatterns": [
+        "/[ \t]* [*]/g", // lines begining with <whitespace><space>*
+        "/[ \t]+[/]{2}/g" // lines begininning with <whitespace>//
+    ],
+    "commentTranslate.multiLineMerge": true,
+    "commentTranslate.targetLanguage": "zh-CN",
+    "commentTranslate.source": "Google",
+    "prettier.singleAttributePerLine": true
 }
