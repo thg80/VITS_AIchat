@@ -40,6 +40,7 @@ logger.setLevel(logging.INFO)
 
 vic2text_path = r'FastASR/models'
 record_path = r'record.wav'
+
 CHUNK = 1024
 FORMAT = paInt16  # 16bit编码格式
 CHANNELS = 1  # 单声道
@@ -61,7 +62,7 @@ with open('config.json','r') as f:
     config = json.load(f)
 
 
-client = poe.Client(config['Poe']['token'], config['Poe']['proxy'])
+
 
 class MyThread(threading.Thread):
 
@@ -80,7 +81,7 @@ class MyThread(threading.Thread):
             return None
 
 
-async def send_poe_request(send_msg):
+async def send_poe_request(send_msg,client):
     sentence = ""
     vits_sentence = "" #以读句
     print("[AI]: ",end="",flush=True)
@@ -114,9 +115,6 @@ async def send_poe_request(send_msg):
                 play_audio("output.wav")
     print()
     return
-
-#未完成
-
 
 def play_audio(audio_file_name):
     command = f'mpv.exe -vo null {audio_file_name}'
@@ -241,19 +239,51 @@ async def start():
     while True:
         #文字输入
         if config['input_mode']:
-            print(Fore.RESET + "请输入 > ")
+            print(Fore.LIGHTYELLOW_EX + "[You]-> ",end=""+ Fore.RESET)
             input_str = await asyncio.get_event_loop().run_in_executor(None, input, '')
             if "切换输入" in input_str or "切换语音输入" in input_str:
                 config['input_mode'] = 0
                 continue
-            if "清除对话" in input_str:
-                client.send_chat_break("capybara")
-                play_audio("done.wav")
-            if "关闭AI" in input_str:
-                client.send_chat_break("capybara")
-                return
             
-            await send_poe_request(input_str)
+            match config['bot']:
+                case "ChatGPT": 
+                    output =  bot.send_chatgpt_request(input_str)
+                    print(Fore.LIGHTYELLOW_EX + '[AI]-> ' + output + Fore.RESET)
+
+                    if len(output) > 200:
+                        #切割output变量里面的句子
+                        output_split = output.split('.|。|？|?')
+                        if output_split is None:
+                            continue
+                        logger.info(f"切割回复 {str(output_split)}")
+                        for sentence in output_split:
+                            if output_split is None:
+                                continue
+                            status, audios, time = await vits(sentence, 0,config['Vic']['speaker_id'], config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale'])
+                    else:
+                        status, audios, time = await vits(output, 0,config['Vic']['speaker_id'], config['Vic']['vitsNoiseScale'], config['Vic']['vitsNoiseScaleW'], config['Vic']['vitsLengthScale'])
+                    
+
+                    if status != "生成成功!":
+                        logger.error("VITS生成失败:",status)
+                    else:
+                        wavfile.write("output.wav", audios[0], audios[1])
+                        play_audio("output.wav")
+                        logger.info(Fore.GREEN + f"VITS: {status} {time}")
+                        Fore.RESET
+
+                case "poe":
+                    client = poe.Client(config['Poe']['token'], config['Poe']['proxy'])
+                    if "清除对话" in input_str:
+                        client.send_chat_break("capybara")
+                        play_audio("done.wav")
+                    if "关闭AI" in input_str:
+                        client.send_chat_break("capybara")
+                        return
+                    await send_poe_request(input_str,client)
+                case _:
+                    raise ValueError("Unknown bot: {}".format(input_str))
+
         #语音输入
         else:
             print(Fore.YELLOW +"Converting..."+ Style.RESET_ALL)
@@ -291,6 +321,7 @@ async def main():
         init_vits_model()
     await asyncio.gather(start(),)
 if __name__ == "__main__":
+    bot.load_memory()
     asyncio.run(main())
     
     

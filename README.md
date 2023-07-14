@@ -25,8 +25,8 @@
 - [x] 添加其他 api，暂定 https://aigptx.top/
 - [x] 使用 Lainchain 进行记忆存储
 - [x] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
-- [ ] 加入源项目
-- [ ] (-) bot 切换
+- [x] 加入源项目
+- [x] (-) bot 切换
 
 ## 日志/记录
 
@@ -36,3 +36,4 @@
 | 2023.7.9  | 测试 langchain                                |
 | 2023.7.10 | 使用 ConversationSummaryBufferMemory          |
 | 2023.7.13 | 终于能存实体了 www<br />自建 Memory_Entity 类 |
+| 2023.7.14 | 加入 langchain 到主项目                       |

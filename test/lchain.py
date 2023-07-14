@@ -22,9 +22,9 @@ with open('config.json','r',encoding='utf8') as f:
     config = json.load(f)
 
 
-os.environ['openai_api_base'] = config['Chatgpt']['url']
-os.environ['OPENAI_API_KEY'] = config['Chatgpt']['api-key']
-os.environ['SERPAPI_API_KEY'] = config['Chatgpt']['serpapi-key']
+os.environ['openai_api_base'] = config['ChatGPT']['url']
+os.environ['OPENAI_API_KEY'] = config['ChatGPT']['api-key']
+os.environ['SERPAPI_API_KEY'] = config['ChatGPT']['serpapi-key']
 
 total_coast = .0
 total_coin = 0
@@ -37,8 +37,8 @@ logger.addHandler(fh)
 logger.setLevel(logging.INFO)
 
 
-chat = ChatOpenAI(temperature=config['Chatgpt']['temperature'],model_name=config['Chatgpt']['model'],max_tokens=config['Chatgpt']['MaxTokens'])
-llm = OpenAI(temperature=0,model_name=config['Chatgpt']['model'],max_tokens=config['Chatgpt']['MaxTokens'])
+chat = ChatOpenAI(temperature=config['ChatGPT']['temperature'],model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
+llm = OpenAI(temperature=0,model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
 
 class TimeTools(BaseTool):
     name = "Time report"
@@ -49,7 +49,7 @@ class TimeTools(BaseTool):
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())   
 
 
-tools = load_tools(["serpapi", "llm-math","openweathermap-api"], llm=chat,openweathermap_api_key = config['Chatgpt']['openweathermap-api-key'])
+tools = load_tools(["serpapi", "llm-math","openweathermap-api"], llm=chat,openweathermap_api_key = config['ChatGPT']['openweathermap-api-key'])
 tools.append(TimeTools())
 
 memory = ConversationSummaryBufferMemory(llm=chat,max_token_limit=256)
@@ -266,8 +266,7 @@ def send_chatgpt_request(send_msg):
 
     return response
 
-
-if __name__ == "__main__":
+def load_memory():
     with open('entity_store.json','r',encoding='utf8') as f:
         try:
             entity_store_read = json.loads(f.read())
@@ -278,9 +277,9 @@ if __name__ == "__main__":
 
         except Exception as e:
             print(e)
-        
 
-
+if __name__ == "__main__":
+    load_memory()
 
     while True:
         message = input("[You]-> ")

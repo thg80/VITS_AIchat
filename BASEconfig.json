@@ -1,12 +1,14 @@
 {
     "input_mode": 1,
+    "bot": "ChatGPT",
+    "verbose": true,
     "hotkey": "ctrl+t",
     "Poe": {
         "token": "",
         "bot": "capybara",
         "proxy": "http://127.0.0.1:7890"
     },
-    "Chatgpt": {
+    "ChatGPT": {
         "url": "https://aigptx.top/v1",
         "api-key": "",
         "serpapi-key": "",
