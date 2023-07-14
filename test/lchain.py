@@ -59,12 +59,14 @@ prompt = ConversationalAgent.create_prompt(
     prefix= """Act as a friend and a helpful assistant. Reply as short you can and please reply in Chinese. You can use the following tools:""", 
     suffix= """Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.]
 
+Known entity information: {entity_store}
+
 Relevant pieces of previous conversation: {chat_history}
 
 Current conversation: 
 Human: {input}
 {agent_scratchpad}""", 
-    input_variables=["input", "chat_history","agent_scratchpad"]
+    input_variables=["input", "chat_history","entity_store","agent_scratchpad"]
 )
 
 
@@ -88,7 +90,8 @@ class Memory_Entity():
     If there is no new information about the provided entity or the information is not worth noting (not an important or relevant fact to remember long-term), return the existing summary unchanged.
 
     Full conversation history and summary information:
-    {history}
+    summary chat: {summary_history}
+    other context: {history}
 
     Entity to summarize:
     {entity}
@@ -98,7 +101,7 @@ class Memory_Entity():
 
     """
     ENTITY_MEMORY_CONVERSATION_TEMPLATE = PromptTemplate(
-        input_variables=["history","entity","summary"], template=ENTITY_MEMORY_TEMPLATE,
+        input_variables=["history","entity","summary","summary_history"], template=ENTITY_MEMORY_TEMPLATE,
     )
     
     #实体提取prompt
@@ -131,27 +134,30 @@ class Memory_Entity():
     END OF EXAMPLE
 
     Conversation history and some summary (for reference only):
-    {history}
+    summary chat: {summary_history}
+    other context: {history}
 
     Output:"""
     ENTITY_EXTRACTION_PROMPT = PromptTemplate(
-        input_variables=["history"], template=_DEFAULT_ENTITY_EXTRACTION_TEMPLATE
+        input_variables=["history","summary_history"], template=_DEFAULT_ENTITY_EXTRACTION_TEMPLATE
     )
 
     
     #提取实体
-    def entity_generate(self,history: Dict[str, Any]) -> Dict[str, Any]:
+    def entity_generate(self,history: Dict[str, Any],summary_history) -> Dict[str, Any]:
         global total_coast, total_coin
-        entity_chain = LLMChain(llm=llm,prompt=self.ENTITY_EXTRACTION_PROMPT,verbose=True)
+        entity_chain = LLMChain(llm=llm,prompt=self.ENTITY_EXTRACTION_PROMPT)
         
 
         with get_openai_callback() as cb:
             output = entity_chain.predict(
-                history=history
+                history=history,
+                summary_history = summary_history
             )
             total_coast += cb.total_cost
             coin = (math.floor((math.floor(cb.prompt_tokens * 3 / 8) + math.floor(cb.completion_tokens / 2))) * 0.4 ) + 1
             total_coin += coin
+            logger.info(f"coast {cb.total_cost}, cost coins {coin}, spend prompt: {cb.total_tokens}")
         logger.info("提取实体: " + output)
 
         # If no named entities are extracted, assigns an empty list.
@@ -173,14 +179,14 @@ class Memory_Entity():
         self.entity_cache = entities
         return {"entities": entity_summaries}
 
-    def save(self,history: Dict[str, Any]) -> Dict[str, Any]:
+    def entity_summary(self,history: Dict[str, Any],summary_history) -> Dict[str, Any]:
         """
         保存对话历史到 entity store.
         从 entity cache 生成每个 entity 的摘要, 并且保存这些摘要到 entity store.
         """
         global total_coast, total_coin
 
-        summary_chain = LLMChain(llm=llm,prompt=self.ENTITY_MEMORY_CONVERSATION_TEMPLATE,verbose=True)
+        summary_chain = LLMChain(llm=llm,prompt=self.ENTITY_MEMORY_CONVERSATION_TEMPLATE)
         
         # 为实体生成新的摘要并将其保存在实体存储中
         for entity in self.entity_cache:
@@ -191,24 +197,38 @@ class Memory_Entity():
                     summary=existing_summary,   #现有摘要
                     entity=entity,  #实体
                     history=history,    #完整的对话历史
+                    summary_history = summary_history #对话历史摘要
                 )
                 total_coast += cb.total_cost
                 coin = (math.floor((math.floor(cb.prompt_tokens * 3 / 8) + math.floor(cb.completion_tokens / 2))) * 0.4 ) + 1
                 total_coin += coin
+                logger.info(f"coast {cb.total_cost}, cost coins {coin}, spend prompt: {cb.total_tokens}")
             # 保存更新的摘要 to the entity store
             self.entity_store.default_factory.set(entity, output.strip())
 
-#更新实体存储
-def entity_update(history: Dict):
-    memory_entity = Memory_Entity()
-    memory_entity.entity_generate(history)
-    memory_entity.save(history)
-    print(str(memory_entity.entity_store.default_factory.store))
 
-#保存记忆到文件
+memory_entity = Memory_Entity()
+#更新实体存储
+def entity_update(history: Dict, summary_history):
+    memory_entity.entity_generate(history,summary_history)
+    memory_entity.entity_summary(history,summary_history)
+    logger.info("更新实体: " + str(memory_entity.entity_store.default_factory.store))
+
+#追加记忆到文件
 def memorySave(dic):
-    with open("memory.json", "w",encoding="utf-8") as f:
-        json.dump(dic,f,indent=4,ensure_ascii=False)
+    #获取已有文件
+    with open("entity_store.json", "r",encoding="utf-8") as f:
+        file = f.read()
+        if len(file) > 0:
+            old_data = json.loads(file)
+            #old_data = json.load(f)
+        else:
+            old_data = {}
+        old_data.update(dic) 
+
+    #写入
+    with open("entity_store.json", "w",encoding="utf-8") as f:
+        json.dump(old_data,f,indent=4,ensure_ascii=False)
         f.close()
 
 
@@ -216,7 +236,7 @@ def send_chatgpt_request(send_msg):
     global total_coast, total_coin
     try:
         with get_openai_callback() as cb:
-            response = agent_executor.run(input = send_msg, chat_history = memory.load_memory_variables(memory.chat_memory.messages)['history'])
+            response = agent_executor.run(input = send_msg, chat_history = memory.load_memory_variables(memory.chat_memory.messages)['history'] , entity_store = memory_entity.entity_store.default_factory.store)
             #花费计算
             coast = cb.total_cost
             total_coast += coast
@@ -236,38 +256,26 @@ def send_chatgpt_request(send_msg):
                 raise Exception(str(e))
     
     #进行压缩记忆存储
-    if len(memory.load_memory_variables(memory.chat_memory.messages)['history']) > 100:
+    if len(memory.load_memory_variables(memory.chat_memory.messages)['history']) > 200 or len(memory.moving_summary_buffer) >300:
 
-        #TODO 1: memory list to summary data, then update the entity
-
-        entity_update(memory.load_memory_variables(memory.chat_memory.messages)['history'])
-        #memorySave(memory.chat_memory.json())
-        logger.info("save memory")
+        #TODO 1: memory list to summary data
+        entity_update(history = memory.load_memory_variables(memory.chat_memory.messages)['history'],summary_history = memory.moving_summary_buffer)
+        memorySave(memory_entity.entity_store.default_factory.store)
+        memory.clear()
+        logger.info("追加记忆到文件")
 
     return response
 
 
-
 if __name__ == "__main__":
-    with open('memory.json','r',encoding='utf8') as f:
+    with open('entity_store.json','r',encoding='utf8') as f:
         try:
-            memorya = json.loads(f.read())
-            memorya = json.loads(memorya)
-            '''
-            messages = memorya["messages"]
-            counter = 0
-            memory.clear()
-            for message in messages:
-                if counter %2 ==0:
-                    memory.chat_memory.add_user_message(str(message['content']))
-                else:
-                    memory.chat_memory.add_ai_message(str(message['content']))
-                counter += 1
+            entity_store_read = json.loads(f.read())
 
-            logger.info("load memory -> BotMemory:")
-            logger.info(memory.chat_memory.messages)
-            entity_update(memory.load_memory_variables(memory.chat_memory.messages)['history'])
-            '''
+            logger.info("load memory ->")
+            logger.info(entity_store_read)
+            memory_entity.entity_store.default_factory.store = entity_store_read
+
         except Exception as e:
             print(e)
         
@@ -281,3 +289,4 @@ if __name__ == "__main__":
         print('[AI]-> ' + reply)
         t2 = time.time()
         logger.info('请求耗时%ss'%(t2-t1))
+        

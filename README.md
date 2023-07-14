@@ -22,17 +22,17 @@
 
 ## TODO
 
-- [X] 添加其他 api，暂定 https://aigptx.top/
-- [X] 使用 Lainchain 进行记忆存储
-- [X] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
+- [x] 添加其他 api，暂定 https://aigptx.top/
+- [x] 使用 Lainchain 进行记忆存储
+- [x] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
 - [ ] 加入源项目
 - [ ] (-) bot 切换
 
 ## 日志/记录
 
-| 日期      | 说明                                                               |
-| --------- | ------------------------------------------------------------------ |
-| 2023.7.8  | poe 被封了 orz                                                     |
-| 2023.7.9  | 测试 langchain                                                     |
-| 2023.7.10 | 使用ConversationSummaryBufferMemory                                |
-| 2023.7.13 | 终于能存实体了 www<br />自建 Memory_Entity 类<br />不过token用好多 |
+| 日期      | 说明                                          |
+| --------- | --------------------------------------------- |
+| 2023.7.8  | poe 被封了 orz                                |
+| 2023.7.9  | 测试 langchain                                |
+| 2023.7.10 | 使用 ConversationSummaryBufferMemory          |
+| 2023.7.13 | 终于能存实体了 www<br />自建 Memory_Entity 类 |
