@@ -2,20 +2,25 @@ import json
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
+import faiss
 from colorama import Back, Fore, Style
-from langchain import LLMChain, OpenAI
-from langchain.agents import (AgentExecutor, ConversationalAgent,
-                              initialize_agent, load_tools)
+from langchain import LLMChain, LLMMathChain, OpenAI
+from langchain.agents import AgentExecutor, ConversationalAgent, load_tools
 from langchain.callbacks import get_openai_callback
+from langchain.callbacks.manager import (AsyncCallbackManagerForToolRun,
+                                         CallbackManagerForToolRun)
 from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationSummaryBufferMemory,VectorStoreRetrieverMemory
+from langchain.docstore import InMemoryDocstore
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.memory import (ConversationSummaryBufferMemory,
+                              VectorStoreRetrieverMemory)
 from langchain.memory.entity import BaseEntityStore, InMemoryEntityStore
 from langchain.prompts import PromptTemplate
-from langchain.tools import BaseTool
-from pydantic import Field
+from langchain.tools import BaseTool, Tool
 from langchain.vectorstores import FAISS
+from pydantic import BaseModel, Field
 
 from main import config, logger
 
@@ -29,6 +34,8 @@ os.environ['SERPAPI_API_KEY'] = config['ChatGPT']['serpapi-key']
 total_coast = .0
 total_coin = 0
 
+embedding_save_name = "load"
+
 
 chat = ChatOpenAI(temperature=config['ChatGPT']['temperature'],model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
 llm = OpenAI(temperature=0,model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
@@ -37,18 +44,49 @@ llm = OpenAI(temperature=0,model_name=config['ChatGPT']['model'],max_tokens=conf
 class TimeTools(BaseTool):
     name = "Time report"
     description = "Get the current date and time, use this more than the normal search if you want to get current time"
+    return_direct = True
     def _run(self,str) -> str:
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) 
     async def _arun(self,str) -> str:
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())   
 
+class CalculatorInput(BaseModel):
+    question: str = Field()
+class CustomCalculatorTool(BaseTool):
+    name = "Calculator"
+    description = "useful for when you need to answer questions about math"
+    args_schema: Type[BaseModel] = CalculatorInput
+    return_direct = True
+    def _run(
+        self, query: str, run_manager: Optional[CallbackManagerForToolRun] = None
+    ) -> str:
+        """Use the tool."""
+        llm_math_chain = LLMMathChain(llm=llm, verbose=True)
+        return llm_math_chain.run(query)
 
-tools = load_tools(["serpapi", "llm-math","openweathermap-api"], llm=chat,openweathermap_api_key = config['ChatGPT']['openweathermap-api-key'])
+    async def _arun(
+        self, query: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None
+    ) -> str:
+        """Use the tool asynchronously."""
+        raise NotImplementedError("Calculator does not support async")
+
+tools = load_tools(["serpapi", "openweathermap-api"], llm=chat,openweathermap_api_key = config['ChatGPT']['openweathermap-api-key'])
 tools.append(TimeTools())
+tools.append(CustomCalculatorTool())
+
+
 
 memory = ConversationSummaryBufferMemory(llm=chat,max_token_limit=256)
 
-
+#embedding 记忆存储
+embedding = OpenAIEmbeddings()
+embedding_size = 1536 # Dimensions of the OpenAIEmbeddings
+index = faiss.IndexFlatL2(embedding_size)
+embedding_fn = OpenAIEmbeddings().embed_query
+vectorstore = FAISS(embedding_fn, index, InMemoryDocstore({}), {})
+retriever = vectorstore.as_retriever(search_kwargs=dict(k=1))
+vector_memory = VectorStoreRetrieverMemory(retriever=retriever)
+vector_memory.save_context({"input": "你是我的私人助手，你的名字是“Sero”"}, {"output": "ok"})
 
 
 prompt = ConversationalAgent.create_prompt(
@@ -57,20 +95,20 @@ prompt = ConversationalAgent.create_prompt(
     suffix= """Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.]
 
 Known entity information: {entity_store}
-
+{VectorDB_history}
 Relevant pieces of previous conversation: {chat_history}
 
 Current conversation: 
 Human: {input}
 {agent_scratchpad}""", 
-    input_variables=["input", "chat_history","entity_store","agent_scratchpad"]
+    input_variables=["input", "chat_history","VectorDB_history","entity_store","agent_scratchpad"]
 )
 
 
-llm_chain = LLMChain(llm=chat,prompt = prompt,verbose=False)
+llm_chain = LLMChain(llm=chat,prompt = prompt,verbose=config['verbose'])
 agent= ConversationalAgent(llm_chain=llm_chain , tools = tools)
-agent_executor = AgentExecutor.from_agent_and_tools(agent=agent , tools = tools,verbose=config['verbose'],
-#handle_parsing_errors="Check your output and make sure it conforms!",
+agent_executor = AgentExecutor.from_agent_and_tools(agent=agent , tools = tools,verbose=True,
+handle_parsing_errors="Check your output and make sure it conforms!",
 max_iterations=3)
 
 
@@ -213,6 +251,7 @@ def entity_update(history: Dict, summary_history):
     memory_entity.entity_summary(history,summary_history)
     logger.info(Fore.GREEN +"更新实体: " + str(memory_entity.entity_store.default_factory.store)+Fore.RESET)
 
+
 #追加记忆到文件
 def memorySave(dic):
     #获取已有文件
@@ -230,12 +269,22 @@ def memorySave(dic):
         json.dump(old_data,f,indent=4,ensure_ascii=False)
         f.close()
 
+    #保存相量库
+    try:
+        for key,value in  memory_entity.entity_store.default_factory.store.items():
+            vector_memory.save_context({"input": key},{"output": value})
+        vectorstore.save_local(embedding_save_name)
+        logger.info(Fore.GREEN+"保存相量库 done"+Fore.RESET)
+    except Exception as e:
+        logger.error("保存相量库出错： " + e)
+
+
 
 def send_chatgpt_request(send_msg):
     global total_coast, total_coin
     try:
         with get_openai_callback() as cb:
-            response = agent_executor.run(input = send_msg, chat_history = memory.load_memory_variables(memory.chat_memory.messages)['history'] , entity_store = memory_entity.entity_store.default_factory.store)
+            response = agent_executor.run(input = send_msg, chat_history = memory.load_memory_variables(memory.chat_memory.messages)['history'] , entity_store = memory_entity.entity_store.default_factory.store, VectorDB_history = vector_memory.load_memory_variables({"prompt":send_msg})["history"])
             #花费计算
             coast = cb.total_cost
             total_coast += coast
@@ -255,9 +304,9 @@ def send_chatgpt_request(send_msg):
                 raise Exception(str(e))
     
     #进行压缩记忆存储
-    if len(memory.load_memory_variables(memory.chat_memory.messages)['history']) > 200 or len(memory.moving_summary_buffer) >300:
+    if len(memory.load_memory_variables(memory.chat_memory.messages)['history']) > 300 or len(memory.moving_summary_buffer) > 500:
 
-        #TODO 1: memory list to summary data
+        
         entity_update(history = memory.load_memory_variables(memory.chat_memory.messages)['history'],summary_history = memory.moving_summary_buffer)
         memorySave(memory_entity.entity_store.default_factory.store)
         memory.clear()
@@ -265,12 +314,26 @@ def send_chatgpt_request(send_msg):
 
     return response
 
+
+
 def load_memory():
     with open('entity_store.json','r',encoding='utf8') as f:
         try:
             entity_store_read = json.loads(f.read())
 
             logger.info(Fore.GREEN + "[load memory] ->" + str(entity_store_read) + Fore.RESET)
-            memory_entity.entity_store.default_factory.store = entity_store_read
+            #memory_entity.entity_store.default_factory.store = entity_store_read
+            memory_entity.entity_store.default_factory.store = {}
+
+
+            #加载相量库
+            vector_memory.retriever.vectorstore = vector_memory.retriever.vectorstore.load_local(embedding_save_name,embedding)
+
+            #将entity_store加载到vectorstore
+            for key,value in  entity_store_read.items():
+                #print("[load memory] -> " + key + ": " + value)
+                vector_memory.save_context({"input": key},{"output": value})
+            logger.info(Fore.GREEN + "[load vector store] done."+Fore.RESET)
+
         except Exception as e:
             raise logger.error(e)

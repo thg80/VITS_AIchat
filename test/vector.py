@@ -33,7 +33,9 @@ memory = VectorStoreRetrieverMemory(retriever=retriever)
 memory.retriever.vectorstore.load_local("load",embedding)
 
 
+
 memory.save_context({"input": "你是我的私人助手，你的名字是“Sero”"}, {"output": "ok"})
+print(memory.load_memory_variables({"prompt": "what sport should i watch?"})["history"])
 # memory.save_context({"input": "My favorite sport is soccer"}, {"output": "..."})
 # memory.save_context({"input": "I don't the Celtics"}, {"output": "ok"}) 
 
