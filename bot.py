@@ -10,11 +10,12 @@ from langchain.agents import (AgentExecutor, ConversationalAgent,
                               initialize_agent, load_tools)
 from langchain.callbacks import get_openai_callback
 from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationSummaryBufferMemory
+from langchain.memory import ConversationSummaryBufferMemory,VectorStoreRetrieverMemory
 from langchain.memory.entity import BaseEntityStore, InMemoryEntityStore
 from langchain.prompts import PromptTemplate
 from langchain.tools import BaseTool
 from pydantic import Field
+from langchain.vectorstores import FAISS
 
 from main import config, logger
 
@@ -46,6 +47,9 @@ tools = load_tools(["serpapi", "llm-math","openweathermap-api"], llm=chat,openwe
 tools.append(TimeTools())
 
 memory = ConversationSummaryBufferMemory(llm=chat,max_token_limit=256)
+
+
+
 
 prompt = ConversationalAgent.create_prompt(
     tools, 

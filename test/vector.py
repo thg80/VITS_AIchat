@@ -7,14 +7,9 @@ from langchain import LLMChain, OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.docstore import InMemoryDocstore
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.memory import (ConversationSummaryBufferMemory,
-                              VectorStoreRetrieverMemory)
-from langchain.memory.entity import BaseEntityStore, InMemoryEntityStore
+from langchain.memory import (VectorStoreRetrieverMemory)
 from langchain.prompts import PromptTemplate
-from langchain.schema import messages_from_dict, messages_to_dict
-from langchain.tools import BaseTool
 from langchain.vectorstores import FAISS
-from pydantic import Field
 
 with open('config.json','r',encoding='utf8') as f:
     config = json.load(f)
@@ -64,6 +59,18 @@ PROMPT = PromptTemplate(
 
 llm_chain = LLMChain(llm=chat,verbose=True,prompt=PROMPT,memory = memory)
 
+def load_memory():
+    with open('entity_store.json','r',encoding='utf8') as f:
+        try:
+            entity_store_read = json.loads(f.read())
+            for key,value in  entity_store_read.items():
+                print("[load memory] -> " + key + ": " + value)
+                memory.save_context({"input": key},{"output": value})
+            memory.retriever.vectorstore.save_local("load")
+        except Exception as e:
+            raise print(e)
+
+load_memory()
 while True:
     #获取输入
     input_ = input("Enter your query: ")
