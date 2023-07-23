@@ -1,5 +1,4 @@
 import json
-import logging
 import math
 import os
 import time
@@ -22,7 +21,6 @@ from main import config, logger
 # with open('config.json','r',encoding='utf8') as f:
 #     config = json.load(f)
 
-
 os.environ['openai_api_base'] = config['ChatGPT']['url']
 os.environ['OPENAI_API_KEY'] = config['ChatGPT']['api-key']
 os.environ['SERPAPI_API_KEY'] = config['ChatGPT']['serpapi-key']
@@ -33,6 +31,7 @@ total_coin = 0
 
 chat = ChatOpenAI(temperature=config['ChatGPT']['temperature'],model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
 llm = OpenAI(temperature=0,model_name=config['ChatGPT']['model'],max_tokens=config['ChatGPT']['MaxTokens'])
+
 
 class TimeTools(BaseTool):
     name = "Time report"
@@ -69,6 +68,8 @@ agent= ConversationalAgent(llm_chain=llm_chain , tools = tools)
 agent_executor = AgentExecutor.from_agent_and_tools(agent=agent , tools = tools,verbose=config['verbose'],
 #handle_parsing_errors="Check your output and make sure it conforms!",
 max_iterations=3)
+
+
 
 class Memory_Entity():
     
@@ -265,7 +266,7 @@ def load_memory():
         try:
             entity_store_read = json.loads(f.read())
 
-            logger.info(Fore.GREEN + "load memory ->" + str(entity_store_read) + Fore.RESET)
+            logger.info(Fore.GREEN + "[load memory] ->" + str(entity_store_read) + Fore.RESET)
             memory_entity.entity_store.default_factory.store = entity_store_read
         except Exception as e:
             raise logger.error(e)

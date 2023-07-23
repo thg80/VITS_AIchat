@@ -255,7 +255,7 @@ async def start():
                         output_split = output.split('.|。|？|?')
                         if output_split is None:
                             continue
-                        logger.info(f"切割回复 {str(output_split)}")
+                        logger.info(f"切割回复 - {str(output_split)}")
                         for sentence in output_split:
                             if output_split is None:
                                 continue
