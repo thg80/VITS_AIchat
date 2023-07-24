@@ -22,15 +22,15 @@
 
 ## 常见问题
 
-- `pip install pyopenjtalk` 出错
+- `pip install pyopenjtalk` 出错 - [参考](<[解决pyopenjtalk安装报错问题_允潇的博客的博客-CSDN博客](https://blog.csdn.net/ky1in93/article/details/129698278)>)
 
   将 `python`编译器添加到**系统环境变量**中，注意是将 `Visual Studio`的 `CMake\bin`添加到系统环境变量中！！
   如果仍然无法安装，请 `pip list`检查一下是否安装了 `cmake`包。
-  先 `pip uninstall cmake`**卸载** `cmake`， 再安装。 [参考](<[解决pyopenjtalk安装报错问题_允潇的博客的博客-CSDN博客](https://blog.csdn.net/ky1in93/article/details/129698278)>)
+  先 `pip uninstall cmake`**卸载** `cmake`， 再安装。
 
 ## TODO
 
-- [x] 添加其他 api，暂定 https://aigptx.top/
+- [x] 添加其他 api，暂定 [aigptx.top](https://aigptx.top?aff=IfyQEDPv)
 - [x] 使用 Lainchain 进行记忆存储
 - [x] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
 - [x] 加入源项目
@@ -45,3 +45,6 @@
 | 2023.7.10 | 使用 ConversationSummaryBufferMemory          |
 | 2023.7.13 | 终于能存实体了 www<br />自建 Memory_Entity 类 |
 | 2023.7.14 | 加入 langchain 到主项目                       |
+| 2023.7.21 | 测试 VectorStoreRetrieverMemory               |
+| 2023.7.23 | 加入 VectorStoreRetrieverMemory 到主项目      |
+| 2023.7.24 | 拆分 bot 文件                                 |
