@@ -20,6 +20,14 @@
 | vitsNoiseScaleW | 控制音素发音长度        |
 | vitsLengthScale | 控制整体语速            |
 
+## 常见问题
+
+- `pip install pyopenjtalk` 出错
+
+  将 `python`编译器添加到**系统环境变量**中，注意是将 `Visual Studio`的 `CMake\bin`添加到系统环境变量中！！
+  如果仍然无法安装，请 `pip list`检查一下是否安装了 `cmake`包。
+  先 `pip uninstall cmake`**卸载** `cmake`， 再安装。 [参考](<[解决pyopenjtalk安装报错问题_允潇的博客的博客-CSDN博客](https://blog.csdn.net/ky1in93/article/details/129698278)>)
+
 ## TODO
 
 - [x] 添加其他 api，暂定 https://aigptx.top/

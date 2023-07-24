@@ -2,6 +2,7 @@
     "cSpell.words": [
         "davinci",
         "Docstore",
+        "fastasr",
         "hparams",
         "langchain",
         "samplerate",
@@ -30,5 +31,9 @@
     "commentTranslate.multiLineMerge": true,
     "commentTranslate.targetLanguage": "zh-CN",
     "commentTranslate.source": "Google",
-    "prettier.singleAttributePerLine": true
+    "prettier.singleAttributePerLine": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none"
 }
