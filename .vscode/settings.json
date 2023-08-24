@@ -33,7 +33,8 @@
     "commentTranslate.source": "Google",
     "prettier.singleAttributePerLine": true,
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        "editor.defaultFormatter": "ms-python.python"
     },
-    "python.formatting.provider": "none"
+    "python.formatting.provider": "none",
+    "python.analysis.typeCheckingMode": "off"
 }

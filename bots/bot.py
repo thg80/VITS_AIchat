@@ -1,6 +1,5 @@
 import os
 from colorama import Back, Fore, Style
-import asyncio
 from scipy.io import wavfile
 import sys
 

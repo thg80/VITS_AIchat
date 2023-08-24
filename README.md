@@ -35,6 +35,7 @@
 - [x] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
 - [x] 加入源项目
 - [x] (-) bot 切换
+- [ ] 实时语音识别
 
 ## 日志/记录
 

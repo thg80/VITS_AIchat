@@ -1,26 +1,30 @@
 import argparse
 import asyncio
+import collections
 import json
 import logging
 import os
+import signal
 import subprocess
 import threading
 import time
 import wave
+from array import array
+from struct import pack
 
 import keyboard
 import soundfile as sf
 import torch
+import webrtcvad
 from colorama import Back, Fore, Style
 from pyaudio import PyAudio, paInt16
-
 from torch import LongTensor, no_grad
-import commons
-import fastasr
-import utils
-from models import SynthesizerTrn
-from text import text_to_sequence
 
+import fastasr
+import modules.commons
+import modules.utils
+from modules.models import SynthesizerTrn
+from text import text_to_sequence
 
 _init_vits_model = False
 hps_ms = None
@@ -87,7 +91,7 @@ def init_vits_model():
     )
     args = parser.parse_args()
     device = torch.device(args.device)
-    hps_ms = utils.get_hparams_from_file(config["Vic"]["model_path"] + r"/config.json")
+    hps_ms = modules.utils.get_hparams_from_file(config["Vic"]["model_path"] + r"/config.json")
     net_g_ms = SynthesizerTrn(
         len(hps_ms.symbols),
         hps_ms.data.filter_length // 2 + 1,
@@ -97,7 +101,7 @@ def init_vits_model():
     )
     _ = net_g_ms.eval().to(device)
     speakers = hps_ms.speakers
-    model, optimizer, learning_rate, epochs = utils.load_checkpoint(
+    model, optimizer, learning_rate, epochs = modules.utils.load_checkpoint(
         config["Vic"]["model_path"] + config["Vic"]["checkpoint_model"], net_g_ms, None
     )
     _init_vits_model = True
@@ -106,7 +110,7 @@ def init_vits_model():
 def get_text(text, hps):
     text_norm, clean_text = text_to_sequence(text, hps.symbols, hps.data.text_cleaners)
     if hps.data.add_blank:
-        text_norm = commons.intersperse(text_norm, 0)
+        text_norm = modules.commons.intersperse(text_norm, 0)
     text_norm = LongTensor(text_norm)
     return text_norm, clean_text
 
@@ -146,6 +150,8 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
         )
 
     return "生成成功!", (22050, audio), f"生成耗时 {round(time.perf_counter()-start, 2)} s"
+
+
 
 
 # 语音录制
@@ -194,12 +200,6 @@ def audio_to_text():
     )
     if audio_len > 0.1:
         start_time = time.time()
-        p = fastasr.Model(vic2text_path, 3)
-        end_time = time.time()
-        logger.info(
-            "Model 初始化 takes {:.2}s.".format(end_time - start_time) + Style.RESET_ALL
-        )
-        start_time = time.time()
         p.reset()
         result = p.forward(data)
         end_time = time.time()
@@ -240,6 +240,8 @@ async def start():
             audio_thread = None
             stop_event = threading.Event()
             while True:
+
+
                 if keyboard.is_pressed(config["hotkey"]):
                     if not is_recording:
                         is_recording = True
@@ -271,9 +273,19 @@ async def main():
         start(),
     )
 
+def init():
+    global p
+    #初始化语音识别mox
+    start_time = time.time()
+    p = fastasr.Model(vic2text_path, 3)
+    end_time = time.time()
+    logger.info(
+        "语音识别模型初始化 takes {:.2}s.".format(end_time - start_time) + Style.RESET_ALL
+    )
+
+    from bots.bot import init_bot
+    init_bot()
 
 if __name__ == "__main__":
-    from bots.bot import init_bot
-
-    init_bot()
+    init()
     asyncio.run(main())

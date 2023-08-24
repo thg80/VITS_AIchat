@@ -9,14 +9,13 @@ from colorama import Back, Fore, Style
 from langchain import LLMChain, LLMMathChain, OpenAI
 from langchain.agents import AgentExecutor, ConversationalAgent, load_tools
 from langchain.callbacks import get_openai_callback
-from langchain.callbacks.manager import (
-    AsyncCallbackManagerForToolRun,
-    CallbackManagerForToolRun,
-)
+from langchain.callbacks.manager import (AsyncCallbackManagerForToolRun,
+                                         CallbackManagerForToolRun)
 from langchain.chat_models import ChatOpenAI
 from langchain.docstore import InMemoryDocstore
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.memory import ConversationSummaryBufferMemory, VectorStoreRetrieverMemory
+from langchain.memory import (ConversationSummaryBufferMemory,
+                              VectorStoreRetrieverMemory)
 from langchain.memory.entity import BaseEntityStore, InMemoryEntityStore
 from langchain.prompts import PromptTemplate
 from langchain.tools import BaseTool, Tool
@@ -403,7 +402,7 @@ def send_chatgpt_request(send_msg):
         )
         memorySave(memory_entity.entity_store.default_factory.store)
         memory.clear()
-        logger.info(Fore.GREEN + "追加记忆到文件" + Fore.RESET)
+        logger.info(Fore.GREEN + "追加实体记忆到文件" + Fore.RESET)
 
     return response
 
@@ -420,18 +419,28 @@ def load_memory():
             memory_entity.entity_store.default_factory.store = {}
 
             # 加载相量库
-            vector_memory.retriever.vectorstore = (
-                vector_memory.retriever.vectorstore.load_local(
-                    embedding_save_name, embedding
+            try:
+                vector_memory.retriever.vectorstore = (
+                    vector_memory.retriever.vectorstore.load_local(
+                        embedding_save_name, embedding
+                    )
                 )
-            )
+                # 将entity_store加载到vectorstore
+                for key, value in entity_store_read.items():
+                    # print("[load memory] -> " + key + ": " + value)
+                    vector_memory.save_context({"input": key}, {"output": value})
 
-            # 将entity_store加载到vectorstore
-            for key, value in entity_store_read.items():
-                # print("[load memory] -> " + key + ": " + value)
-                vector_memory.save_context({"input": key}, {"output": value})
-
-            logger.info(Fore.GREEN + "[load vector store] done." + Fore.RESET)
+                logger.info(Fore.GREEN + "[load vector store] done." + Fore.RESET)
+            except Exception as e:
+                logger.error(Back.RED+ "加载相量库失败: " + str(e) + Style.RESET_ALL)
+                
+        
+        except FileNotFoundError:
+            logger.info("未找到 entity_store.json 正在创建")
+            with open("entity_store.json", "w", encoding="utf8") as f:
+                f.write("{}")
 
         except Exception as e:
-            raise logger.error(e)
+            logger.error(Back.RED+ "An error occurred: " + str(e) + Style.RESET_ALL)
+            raise 
+        
