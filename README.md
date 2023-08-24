@@ -24,7 +24,7 @@
 
 - `pip install pyopenjtalk` 出错 - [参考](https://blog.csdn.net/ky1in93/article/details/129698278)
 
-  将 `python`编译器添加到**系统环境变量**中，注意是将 `Visual Studio`的 `CMake\bin`添加到系统环境变量中！！
+  将 `python`编译器添加到**系统环境变量**中，注意是将 `Visual Studio`的 `CMake\bin`添加到系统环境变量中！
   如果仍然无法安装，请 `pip list`检查一下是否安装了 `cmake`包。
   先 `pip uninstall cmake`卸载 `cmake`， 再安装。
 
@@ -35,7 +35,8 @@
 - [x] 压缩记忆初步实现（存为 ConversationSummaryBufferMemory 再存为实体）
 - [x] 加入源项目
 - [x] (-) bot 切换
-- [ ] 实时语音识别
+- [x] 实时语音识别
+- [ ] 无意义文本过滤
 
 ## 日志/记录
 
@@ -49,3 +50,4 @@
 | 2023.7.21 | 测试 VectorStoreRetrieverMemory               |
 | 2023.7.23 | 加入 VectorStoreRetrieverMemory 到主项目      |
 | 2023.7.24 | 拆分 bot 文件                                 |
+| 2023.8.24 | 实时语音识别                                  |
