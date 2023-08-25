@@ -3,20 +3,20 @@ import asyncio
 import json
 import logging
 import subprocess
-import threading
 import time
-
-import keyboard
+import os
+from pynput import keyboard
 import torch
 from colorama import Back, Fore, Style
 from pyaudio import PyAudio, paInt16
 from torch import LongTensor, no_grad
-
+import re
 import modules.commons
 import modules.utils as utils
 from modules.models import SynthesizerTrn
 from text import text_to_sequence
-
+from scipy.io import wavfile
+import webbrowser
 
 _init_vits_model = False
 hps_ms = None
@@ -37,13 +37,9 @@ logger.setLevel(logging.INFO)
 
 record_path = r"record.wav"
 
-CHUNK = 1024
-FORMAT = paInt16  # 16bit编码格式
-CHANNELS = 1  # 单声道
-RATE = 16000  # 16000采样频率
 
 
-with open("config.json", "r") as f:
+with open("config.json", "r",encoding="utf-8") as f:
     config = json.load(f)
 
 
@@ -129,9 +125,87 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
     return "生成成功!", (22050, audio), f"生成耗时 {round(time.perf_counter()-start, 2)} s"
 
 
+#快捷打开软件
+def quick_launch(program):
+
+    for programs in config["QuickLaunch"]:
+        if "网页" in program and program in programs:
+            webbrowser.open(config["QuickLaunch"][program])
+            return True
+
+        if program in programs:
+            os.startfile(config["QuickLaunch"][program])
+            return True
+    return False
+
+def extract_text(text):
+    match = re.search(r'(?:打开|启动)\s*([^\s]+)',text)
+    if match:
+        program = match.group(1)
+        if quick_launch(program):
+            text = "已打开" + program
+        else:
+            text = "未找到" + program
+        logger.info(Fore.YELLOW + text + Style.RESET_ALL)
+        return text
+    
+    #网页相关
+    else:
+        match = re.search(r'(?:哔哩哔哩搜索)\s*([^\s]+)',text)
+        if match:
+            search = match.group(1)
+            url = f"https://search.bilibili.com/all?keyword={search}"
+            webbrowser.open(url)
+            logger.info(Fore.BLUE + "打开网页:" + url + Style.RESET_ALL)
+            return "已打开网页"
+        else:
+            match = re.search(r'(?:搜索|浏览器搜索)\s*([^\s]+)',text)
+            if match:
+                search = match.group(1)
+                url = f"https://www.bing.com/search?q={search}"
+                webbrowser.open(url)
+                logger.info(Fore.BLUE + "打开网页:" + url + Style.RESET_ALL)
+                return "已打开网页"
+
+    return None
+
+#播放提示文本
+async def play_hint_audio(text):
+    status, audios, time = await vits(
+        text,
+        0,
+        config["Vic"]["speaker_id"],
+        config["Vic"]["vitsNoiseScale"],
+        config["Vic"]["vitsNoiseScaleW"],
+        config["Vic"]["vitsLengthScale"],
+    )
+    if status != "生成成功!":
+        logger.error("VITS生成失败:", status)
+    else:
+        wavfile.write("output.wav", audios[0], audios[1])
+        play_audio("output.wav")
+
+#按键停止监控与恢复
+paused = False
+def on_press():
+    global paused
+    paused = not paused
+    if paused:
+        logger.info(Fore.RED + "将在输出完成后停止监听" + Style.RESET_ALL)
+    else:
+        logger.info(Fore.GREEN + "恢复监听" + Style.RESET_ALL)
+        play_audio("trigger.wav")
+    time.sleep(0.1)
+
 
 async def start():
     from bots.bot import bot_runner
+    global paused
+
+    
+    listener = keyboard.GlobalHotKeys({"<ctrl>+t":on_press})
+    listener.start()
+
 
     while True:
         # 文字输入
@@ -148,41 +222,49 @@ async def start():
             from modules.audio import listen,stream_stop
             play_audio("trigger.wav")
             print(Fore.YELLOW + "开始监听..." + Style.RESET_ALL)
-            stop = False
+            time.sleep(1)
+            paused = False
             while True:
-                if keyboard.is_pressed(config["hotkey"]) or stop:
-                    logger.info(Fore.RED + "停止监听" + Style.RESET_ALL)
-                    time.sleep(1)
-                    while True:
-                        if keyboard.is_pressed(config["hotkey"]):
-                            logger.info(Fore.RED + "继续监听".format(config["hotkey"]) + Style.RESET_ALL)
-                            stop = False
-                            break
-                        time.sleep(0.8)
-                
-                
-                result = listen(record_path)
-                stream_stop()
-                play_audio("done.wav")
+                if paused:
+                    time.sleep(0.5)
+                    continue
+                else:
+                    result = listen(record_path)
+                    stream_stop()
+                    play_audio("done.wav")
 
-                if result is not None:
-                    if "停止" in result:
-                        stop = True
-                        continue
-                    if "切换输入" in result:
-                        config["input_mode"] = 1
-                        play_audio("done.wav")
-                        break
-                    await bot_runner(result, config["bot"])
-                    time.sleep(0.8)  # 避免VITS被录入
-                    play_audio("trigger.wav")
+                    if result is not None and not paused:
+                        if ("停止" or "暂停") in result:
+                            paused = True
+                            continue
+                        if "切换输入" in result:
+                            config["input_mode"] = 1
+                            play_audio("done.wav")
+                            break
+
+                        handled_text = extract_text(result)
+                        if handled_text is not None:
+                            await play_hint_audio(handled_text)
+                            time.sleep(0.8)
+                            play_audio("trigger.wav")
+                            continue
+
+                        await bot_runner(result, config["bot"])
+                        time.sleep(0.8)  # 避免VITS被录入
+                        play_audio("trigger.wav")
+                    pass
+                
+                
+                
+
 
 
 async def main():
     if not _init_vits_model:
         init_vits_model()
+    main_task = asyncio.create_task(start())
     await asyncio.gather(
-        start(),
+        main_task,
     )
 
 

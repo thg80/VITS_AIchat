@@ -24,5 +24,11 @@
         "speaker_id": 165,
         "model_path": "./model/Genshin",
         "checkpoint_model": "/G_953000.pth"
+    },
+    "QuickLaunch": {
+        "网易云": "D://CloudMusic/cloudmusic.exe",
+        "浏览器": "C://Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+        "B站网页": "https://www.bilibili.com/",
+        "哔哩哔哩网页": "https://www.bilibili.com/"
     }
 }

@@ -28,7 +28,7 @@
         "/[ \t]* [*]/g", // lines begining with <whitespace><space>*
         "/[ \t]+[/]{2}/g" // lines begininning with <whitespace>//
     ],
-    "commentTranslate.multiLineMerge": true,
+    "commentTranslate.multiLineMerge": false,
     "commentTranslate.targetLanguage": "zh-CN",
     "commentTranslate.source": "Google",
     "prettier.singleAttributePerLine": true,
