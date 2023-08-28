@@ -2,6 +2,7 @@ import os
 from colorama import Back, Fore, Style
 from scipy.io import wavfile
 import sys
+from ui.app import text_send_thread
 
 main = sys.modules["__main__"]
 
@@ -19,6 +20,7 @@ async def bot_runner(input_str, bot_name):
             from bots.chatgpt_ import send_chatgpt_request
 
             output = send_chatgpt_request(input_str)
+            text_send_thread(output)
             print(Fore.LIGHTYELLOW_EX + "[AI]-> " + output + Fore.RESET)
 
             if len(output) > 200:

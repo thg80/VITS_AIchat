@@ -8,7 +8,6 @@ import os
 from pynput import keyboard
 import torch
 from colorama import Back, Fore, Style
-from pyaudio import PyAudio, paInt16
 from torch import LongTensor, no_grad
 import re
 import modules.commons
@@ -17,13 +16,22 @@ from modules.models import SynthesizerTrn
 from text import text_to_sequence
 from scipy.io import wavfile
 import webbrowser
+import asyncio
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 _init_vits_model = False
 hps_ms = None
 device = None
 net_g_ms = None
-limitation = 500
+# 按键停止监控与恢复
+paused = False
 
+
+record_path = r"record.wav"
+
+
+# logger 相关
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(message)s")
 logger = logging.getLogger()
 fh = logging.FileHandler(filename="logger.log", encoding="utf-8", mode="a")
@@ -35,11 +43,8 @@ fh.setFormatter(
 logger.addHandler(fh)
 logger.setLevel(logging.INFO)
 
-record_path = r"record.wav"
 
-
-
-with open("config.json", "r",encoding="utf-8") as f:
+with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
 
@@ -62,9 +67,7 @@ def init_vits_model():
     )
     args = parser.parse_args()
     device = torch.device(args.device)
-    hps_ms = utils.get_hparams_from_file(
-        config["Vic"]["model_path"] + r"/config.json"
-    )
+    hps_ms = utils.get_hparams_from_file(config["Vic"]["model_path"] + r"/config.json")
     net_g_ms = SynthesizerTrn(
         len(hps_ms.symbols),
         hps_ms.data.filter_length // 2 + 1,
@@ -95,7 +98,7 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
     if not len(text):
         return "输入文本不能为空！", None, None
     text = text.replace("\n", " ").replace("\r", "").replace(" ", "")
-    if len(text) > 200 and limitation:
+    if len(text) > 250:
         return f"输入文字过长！{len(text)}>100", None, None
     if language == 0:
         text = f"[ZH]{text}[ZH]"
@@ -125,9 +128,9 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
     return "生成成功!", (22050, audio), f"生成耗时 {round(time.perf_counter()-start, 2)} s"
 
 
-#快捷打开软件
+# *快捷打开软件
 def quick_launch(program):
-
+    # 在配置文件中
     for programs in config["QuickLaunch"]:
         if "网页" in program and program in programs:
             webbrowser.open(config["QuickLaunch"][program])
@@ -136,10 +139,13 @@ def quick_launch(program):
         if program in programs:
             os.startfile(config["QuickLaunch"][program])
             return True
+
     return False
 
+
+# * 其他语音操作
 def extract_text(text):
-    match = re.search(r'(?:打开|启动)\s*([^\s]+)',text)
+    match = re.search(r'(?:打开|启动)\s*([^\s]+)', text)
     if match:
         program = match.group(1)
         if quick_launch(program):
@@ -148,10 +154,10 @@ def extract_text(text):
             text = "未找到" + program
         logger.info(Fore.YELLOW + text + Style.RESET_ALL)
         return text
-    
-    #网页相关
+
+    # 网页相关
     else:
-        match = re.search(r'(?:哔哩哔哩搜索)\s*([^\s]+)',text)
+        match = re.search(r'(?:哔哩哔哩搜索)\s*([^\s]+)', text)
         if match:
             search = match.group(1)
             url = f"https://search.bilibili.com/all?keyword={search}"
@@ -159,7 +165,7 @@ def extract_text(text):
             logger.info(Fore.BLUE + "打开网页:" + url + Style.RESET_ALL)
             return "已打开网页"
         else:
-            match = re.search(r'(?:搜索|浏览器搜索)\s*([^\s]+)',text)
+            match = re.search(r'(?:搜索|浏览器搜索)\s*([^\s]+)', text)
             if match:
                 search = match.group(1)
                 url = f"https://www.bing.com/search?q={search}"
@@ -169,8 +175,9 @@ def extract_text(text):
 
     return None
 
-#播放提示文本
+
 async def play_hint_audio(text):
+    '播放提示文本'
     status, audios, time = await vits(
         text,
         0,
@@ -185,27 +192,28 @@ async def play_hint_audio(text):
         wavfile.write("output.wav", audios[0], audios[1])
         play_audio("output.wav")
 
-#按键停止监控与恢复
-paused = False
+
+# * 暂停监听
 def on_press():
+    '暂停监听'
     global paused
     paused = not paused
     if paused:
         logger.info(Fore.RED + "将在输出完成后停止监听" + Style.RESET_ALL)
     else:
         logger.info(Fore.GREEN + "恢复监听" + Style.RESET_ALL)
-        play_audio("trigger.wav")
+        play_audio("./resource/trigger.wav")
     time.sleep(0.1)
 
 
 async def start():
     from bots.bot import bot_runner
+    from ui.app import text_send_thread
+
     global paused
 
-    
-    listener = keyboard.GlobalHotKeys({"<ctrl>+t":on_press})
+    listener = keyboard.GlobalHotKeys({"<ctrl>+t": on_press})
     listener.start()
-
 
     while True:
         # 文字输入
@@ -219,19 +227,20 @@ async def start():
 
         # 语音输入
         else:
-            from modules.audio import listen,stream_stop
-            play_audio("trigger.wav")
+            from modules.audio import listen, stream_stop
+
+            play_audio("./resource/trigger.wav")
+            await asyncio.sleep(1)
             print(Fore.YELLOW + "开始监听..." + Style.RESET_ALL)
-            time.sleep(1)
             paused = False
             while True:
                 if paused:
-                    time.sleep(0.5)
+                    await asyncio.sleep(0.5)
                     continue
                 else:
                     result = listen(record_path)
                     stream_stop()
-                    play_audio("done.wav")
+                    play_audio("./resource/done.wav")
 
                     if result is not None and not paused:
                         if ("停止" or "暂停") in result:
@@ -239,48 +248,67 @@ async def start():
                             continue
                         if "切换输入" in result:
                             config["input_mode"] = 1
-                            play_audio("done.wav")
+                            play_audio("./resource/done.wav")
                             break
+
+                        # if "原神启动" in result:
+                        #     import sys
+                        #     import win32gui
+
+                        #     os.startfile(
+                        #         "F:\Game\Genshin Impact\Genshin Impact Game\YuanShen.exe"
+                        #     )
+                        #     while win32gui.FindWindow(None, "原神") == 0:
+                        #         asyncio.sleep(0.5)
+                        #         print("wait")
+                        #     win32gui.SetForegroundWindow(
+                        #         win32gui.FindWindow(None, "原神")
+                        #     )
+                        #     # 停止代码
+                        #     print("stop")
+                        #     sys.exit()
 
                         handled_text = extract_text(result)
                         if handled_text is not None:
+                            text_send_thread(handled_text)
                             await play_hint_audio(handled_text)
-                            time.sleep(0.8)
-                            play_audio("trigger.wav")
+                            await asyncio.sleep(0.8)
+                            play_audio("./resource/trigger.wav")
                             continue
 
                         await bot_runner(result, config["bot"])
-                        time.sleep(0.8)  # 避免VITS被录入
-                        play_audio("trigger.wav")
+                        await asyncio.sleep(0.8)  # 避免VITS被录入
+                        play_audio("./resource/trigger.wav")
                     pass
-                
-                
-                
-
 
 
 async def main():
     if not _init_vits_model:
         init_vits_model()
-    main_task = asyncio.create_task(start())
-    await asyncio.gather(
-        main_task,
-    )
+    from ui.app import icon_thread
+
+    await asyncio.gather(icon_thread(), start())
 
 
 def init():
-
     from bots.bot import init_bot
     from modules.audio import init as model_init
+    from ui.app import ui_init
 
-    model_init()
-    init_bot()
+    start_time = time.time()
 
-    with open("speakers.json", "r",encoding="utf-8") as f:
+    with open("speakers.json", "r", encoding="utf-8") as f:
         file = json.load(f)
         speaker = file["speakers"][config["Vic"]["speaker_id"]]
         logger.info(Fore.GREEN + "Speaker: {}".format(speaker) + Style.RESET_ALL)
 
+    model_init()
+    init_bot()
+
+    ui_init()
+
+    end_time = time.time()
+    print("初始化 总计花费 {:.2}s.".format(end_time - start_time) + Style.RESET_ALL)
 
 
 if __name__ == "__main__":
