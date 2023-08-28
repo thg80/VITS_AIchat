@@ -20,6 +20,8 @@ async def bot_runner(input_str, bot_name):
             from bots.chatgpt_ import send_chatgpt_request
 
             output = send_chatgpt_request(input_str)
+            if output == "None":
+                return
             text_send_thread(output)
             print(Fore.LIGHTYELLOW_EX + "[AI]-> " + output + Fore.RESET)
 

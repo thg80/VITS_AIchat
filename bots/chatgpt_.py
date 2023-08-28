@@ -9,13 +9,14 @@ from colorama import Back, Fore, Style
 from langchain import LLMChain, LLMMathChain, OpenAI
 from langchain.agents import AgentExecutor, ConversationalAgent, load_tools
 from langchain.callbacks import get_openai_callback
-from langchain.callbacks.manager import (AsyncCallbackManagerForToolRun,
-                                         CallbackManagerForToolRun)
+from langchain.callbacks.manager import (
+    AsyncCallbackManagerForToolRun,
+    CallbackManagerForToolRun,
+)
 from langchain.chat_models import ChatOpenAI
 from langchain.docstore import InMemoryDocstore
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.memory import (ConversationSummaryBufferMemory,
-                              VectorStoreRetrieverMemory)
+from langchain.memory import ConversationSummaryBufferMemory, VectorStoreRetrieverMemory
 from langchain.memory.entity import BaseEntityStore, InMemoryEntityStore
 from langchain.prompts import PromptTemplate
 from langchain.tools import BaseTool, Tool
@@ -105,11 +106,11 @@ retriever = vectorstore.as_retriever(search_kwargs=dict(k=1))
 vector_memory = VectorStoreRetrieverMemory(retriever=retriever)
 vector_memory.save_context({"input": "你是我的私人助手，你的名字是“Sero”"}, {"output": "ok"})
 
-
+# 提示词
 prompt = ConversationalAgent.create_prompt(
     tools,
-    prefix="""Act as a friend and a helpful assistant. Reply as short you can and please reply in Chinese. You can use the following tools:""",
-    suffix="""Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.]
+    prefix="""Please play the role of an AI companion (Do not reveal your role). As a friend to humans,reply as short you can and please reply in Chinese. You can use the following tools:""",
+    suffix="""Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.] [Remember if the "Human: " sometimes delivers illogical text (as noise), please output "None"]
 
 Known entity information: {entity_store}
 {VectorDB_history}
@@ -332,13 +333,14 @@ def memorySave(dic):
         f.close()
 
     # 保存相量库
-    try:
-        for key, value in memory_entity.entity_store.default_factory.store.items():
-            vector_memory.save_context({"input": key}, {"output": value})
-        vectorstore.save_local(embedding_save_name)
-        logger.info(Fore.GREEN + "保存相量库 done" + Fore.RESET)
-    except Exception as e:
-        logger.error("保存相量库出错： " + e)
+    if config["ChatGPT"]["save_vector_memory"]:
+        try:
+            for key, value in memory_entity.entity_store.default_factory.store.items():
+                vector_memory.save_context({"input": key}, {"output": value})
+            vectorstore.save_local(embedding_save_name)
+            logger.info(Fore.GREEN + "保存相量库 done" + Fore.RESET)
+        except Exception as e:
+            logger.error("保存相量库出错： " + e)
 
 
 def send_chatgpt_request(send_msg):
@@ -419,28 +421,27 @@ def load_memory():
             memory_entity.entity_store.default_factory.store = {}
 
             # 加载相量库
-            try:
-                vector_memory.retriever.vectorstore = (
-                    vector_memory.retriever.vectorstore.load_local(
-                        embedding_save_name, embedding
+            if config["ChatGPT"]["save_vector_memory"]:
+                try:
+                    vector_memory.retriever.vectorstore = (
+                        vector_memory.retriever.vectorstore.load_local(
+                            embedding_save_name, embedding
+                        )
                     )
-                )
-                # 将entity_store加载到vectorstore
-                for key, value in entity_store_read.items():
-                    # print("[load memory] -> " + key + ": " + value)
-                    vector_memory.save_context({"input": key}, {"output": value})
+                    # 将entity_store加载到vectorstore
+                    for key, value in entity_store_read.items():
+                        # print("[load memory] -> " + key + ": " + value)
+                        vector_memory.save_context({"input": key}, {"output": value})
 
-                logger.info(Fore.GREEN + "[load vector store] done." + Fore.RESET)
-            except Exception as e:
-                logger.error(Back.RED+ "加载相量库失败: " + str(e) + Style.RESET_ALL)
-                
-        
+                    logger.info(Fore.GREEN + "[load vector store] done." + Fore.RESET)
+                except Exception as e:
+                    logger.error(Back.RED + "加载相量库失败: " + str(e) + Style.RESET_ALL)
+
         except FileNotFoundError:
             logger.info("未找到 entity_store.json 正在创建")
             with open("entity_store.json", "w", encoding="utf8") as f:
                 f.write("{}")
 
         except Exception as e:
-            logger.error(Back.RED+ "An error occurred: " + str(e) + Style.RESET_ALL)
-            raise 
-        
+            logger.error(Back.RED + "An error occurred: " + str(e) + Style.RESET_ALL)
+            raise

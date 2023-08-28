@@ -19,6 +19,8 @@ import webbrowser
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from PyQt5.QtWidgets import QApplication
+import sys
 
 _init_vits_model = False
 hps_ms = None
@@ -132,13 +134,16 @@ async def vits(text, language, speaker_id, noise_scale, noise_scale_w, length_sc
 def quick_launch(program):
     # 在配置文件中
     for programs in config["QuickLaunch"]:
-        if "网页" in program and program in programs:
-            webbrowser.open(config["QuickLaunch"][program])
-            return True
+        try:
+            if "网页" in program and program in programs:
+                webbrowser.open(config["QuickLaunch"][program])
+                return True
 
-        if program in programs:
-            os.startfile(config["QuickLaunch"][program])
-            return True
+            if program in programs:
+                os.startfile(config["QuickLaunch"][program])
+                return True
+        except:
+            logger.error(f"快捷打开软件 {program} 失败")
 
     return False
 
@@ -244,6 +249,7 @@ async def start():
 
                     if result is not None and not paused:
                         if ("停止" or "暂停") in result:
+                            logger.info("-- 暂停监听 --")
                             paused = True
                             continue
                         if "切换输入" in result:
@@ -285,9 +291,9 @@ async def start():
 async def main():
     if not _init_vits_model:
         init_vits_model()
-    from ui.app import icon_thread
+    from ui.app import win_icon_thread
 
-    await asyncio.gather(icon_thread(), start())
+    await asyncio.gather(win_icon_thread(), start())
 
 
 def init():
@@ -304,13 +310,23 @@ def init():
 
     model_init()
     init_bot()
-
     ui_init()
 
     end_time = time.time()
     print("初始化 总计花费 {:.2}s.".format(end_time - start_time) + Style.RESET_ALL)
 
 
-if __name__ == "__main__":
-    init()
+def run_async():
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    init()
+
+    # t = ThreadPoolExecutor()
+    # t.submit(run_async)
+    thread = threading.Thread(target=run_async)
+    thread.start()
+
+    sys.exit(app.exec_())

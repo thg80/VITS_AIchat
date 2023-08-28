@@ -11,6 +11,7 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QDesktopWidget, QWidget
 from ui.window_effect import WindowEffect
+import threading
 
 
 class Chat_Window(QMainWindow):
@@ -61,7 +62,7 @@ class Chat_Window(QMainWindow):
 
         self.lyric_label = QLabel(self)
         self.lyric_label.setAlignment(Qt.AlignCenter)
-        self.lyric_label.setFont(QFont("Arial", 16))
+        self.lyric_label.setFont(QFont("微软雅黑", 14))
         self.lyric_label.setStyleSheet("color: rgb(255, 255, 255);")
 
         self.timer = QTimer(self)

@@ -24,8 +24,8 @@ record_path = r"./record.wav"
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-CHUNK_DURATION_MS = 30       # supports 10, 20 and 30 (ms)
-PADDING_DURATION_MS = 1500   # 1 sec jugement
+CHUNK_DURATION_MS = 30  # supports 10, 20 and 30 (ms)
+PADDING_DURATION_MS = 1500  # 1 sec jugement
 CHUNK_SIZE = int(RATE * CHUNK_DURATION_MS / 1000)  # chunk to read
 CHUNK_BYTES = CHUNK_SIZE * 2  # 16bit = 2 bytes, PCM
 NUM_PADDING_CHUNKS = int(PADDING_DURATION_MS / CHUNK_DURATION_MS)
@@ -41,7 +41,8 @@ pa = pyaudio.PyAudio()
 got_a_sentence = False
 leave = False
 
-#初始化
+
+# 初始化
 def init():
     global p
     start_time = time.time()
@@ -51,8 +52,9 @@ def init():
         "Model 初始化 takes {:.2}s.".format(end_time - start_time) + Style.RESET_ALL
     )
 
+
 # 转文字
-def audio_to_text(path:str):
+def audio_to_text(path: str):
     data, samplerate = sf.read(path, dtype="int16")
     audio_len = data.size / samplerate
     main.logger.info(
@@ -80,14 +82,16 @@ def audio_to_text(path:str):
         return None
 
 
-def listen(audio_path:str):
-    stream = pa.open(format=FORMAT,
-                 channels=CHANNELS,
-                 rate=RATE,
-                 input=True,
-                 start=False,
-                 # input_device_index=2,
-                 frames_per_buffer=CHUNK_SIZE)
+def listen(audio_path: str):
+    stream = pa.open(
+        format=FORMAT,
+        channels=CHANNELS,
+        rate=RATE,
+        input=True,
+        start=False,
+        # input_device_index=2,
+        frames_per_buffer=CHUNK_SIZE,
+    )
 
     global leave, got_a_sentence
 
@@ -95,7 +99,8 @@ def listen(audio_path:str):
         global leave, got_a_sentence
         leave = True
         got_a_sentence = True
-    #从麦克风记录并将结果数据输出到‘path’
+
+    # 从麦克风记录并将结果数据输出到‘path’
     def record_to_file(path, data, sample_width):
         # sample_width, data = record()
         data = pack('<' + ('h' * len(data)), *data)
@@ -106,9 +111,8 @@ def listen(audio_path:str):
         wf.writeframes(data)
         wf.close()
 
-    #平均音量
+    # 平均音量
     def normalize(snd_data):
-        
         MAXIMUM = 32767  # 16384
         times = float(MAXIMUM) / max(abs(i) for i in snd_data)
         r = array('h')
@@ -116,7 +120,7 @@ def listen(audio_path:str):
             r.append(int(i * times))
         return r
 
-    signal.signal(signal.SIGINT, handle_int)
+    # signal.signal(signal.SIGINT, handle_int)
 
     while not leave:
         ring_buffer = collections.deque(maxlen=NUM_PADDING_CHUNKS)
@@ -194,7 +198,8 @@ def listen(audio_path:str):
         return audio_to_text(audio_path)
 
     stream.close()
-    
+
+
 def stream_stop():
     global leave, got_a_sentence
     got_a_sentence = False
