@@ -14,6 +14,49 @@ def init_bot():
     load_memory()
 
 
+async def active_conversation():
+    '''主动对话'''
+    from bots.chatgpt_ import active_conversation
+
+    output = active_conversation()
+    print(Fore.LIGHTYELLOW_EX + "[AI]-> " + output + Fore.RESET)
+    text_send_thread(output)
+    if len(output) > 200:
+        # 切割output变量里面的句子
+        output_split = output.split(".|。|？|?")
+        if output_split is None:
+            return
+        main.logger.info(f"切割回复 - {str(output_split)}")
+        for sentence in output_split:
+            if output_split is None:
+                continue
+            status, audios, time = await main.vits(
+                sentence,
+                0,
+                main.config["Vic"]["speaker_id"],
+                main.config["Vic"]["vitsNoiseScale"],
+                main.config["Vic"]["vitsNoiseScaleW"],
+                main.config["Vic"]["vitsLengthScale"],
+            )
+    else:
+        status, audios, time = await main.vits(
+            output,
+            0,
+            main.config["Vic"]["speaker_id"],
+            main.config["Vic"]["vitsNoiseScale"],
+            main.config["Vic"]["vitsNoiseScaleW"],
+            main.config["Vic"]["vitsLengthScale"],
+        )
+
+    if status != "生成成功!":
+        main.logger.error("VITS生成失败:", status)
+    else:
+        wavfile.write("output.wav", audios[0], audios[1])
+        main.play_audio("output.wav")
+        main.logger.info(Fore.GREEN + f"VITS: {status} {time}")
+        Fore.RESET
+
+
 async def bot_runner(input_str, bot_name):
     match bot_name:
         case "ChatGPT":

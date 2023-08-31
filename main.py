@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import logging
+import random
 import subprocess
 import time
 import os
@@ -28,10 +29,9 @@ device = None
 net_g_ms = None
 # 按键停止监控与恢复
 paused = False
-
+listening = False
 
 record_path = r"record.wav"
-
 
 # logger 相关
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(message)s")
@@ -154,9 +154,9 @@ def extract_text(text):
     if match:
         program = match.group(1)
         if quick_launch(program):
-            text = "已打开" + program
+            text = "已打开: " + program
         else:
-            text = "未找到" + program
+            text = "未找到: " + program
         logger.info(Fore.YELLOW + text + Style.RESET_ALL)
         return text
 
@@ -212,10 +212,10 @@ def on_press():
 
 
 async def start():
-    from bots.bot import bot_runner
+    from bots.bot import bot_runner, active_conversation
     from ui.app import text_send_thread
 
-    global paused
+    global paused, config, listening, listen_task, active_cov_task, event
 
     listener = keyboard.GlobalHotKeys({"<ctrl>+t": on_press})
     listener.start()
@@ -238,24 +238,55 @@ async def start():
             await asyncio.sleep(1)
             print(Fore.YELLOW + "开始监听..." + Style.RESET_ALL)
             paused = False
+            now_time = 0
+
+            event = threading.Event()
+
             while True:
                 if paused:
                     await asyncio.sleep(0.5)
                     continue
                 else:
-                    result = listen(record_path)
+                    listening = False
+                    last_time = now_time
+                    now_time = time.time()
+                    print(now_time - last_time)
+
+                    t = ThreadPoolExecutor()
+                    th = t.submit(listen, record_path)
+                    event.set()
+
+                    # * 在录音过程中进行随机主动输出
+                    while th.running() and (now_time - last_time) > 15:
+                        logger.info("--主动对话--")
+                        if random.randint(0, 100) < 10:
+                            logger.info("-- 随机主动对话 --")
+                            event.clear()
+                            await active_conversation()
+                            logger.info("-- 随机主动对话-结束 --")
+                            event.set()
+                            break
+                        await asyncio.sleep(3)
+
+                    result = th.result()
                     stream_stop()
-                    play_audio("./resource/done.wav")
+
+                    # play_audio("./resource/done.wav")
 
                     if result is not None and not paused:
                         if ("停止" or "暂停") in result:
                             logger.info("-- 暂停监听 --")
+                            await play_hint_audio("暂停监听")
                             paused = True
                             continue
                         if "切换输入" in result:
                             config["input_mode"] = 1
                             play_audio("./resource/done.wav")
                             break
+                        if "刷新数据" in result:
+                            with open("config.json", "r", encoding="utf-8") as f:
+                                config = json.load(f)
+                            continue
 
                         # if "原神启动" in result:
                         #     import sys
@@ -293,7 +324,10 @@ async def main():
         init_vits_model()
     from ui.app import win_icon_thread
 
-    await asyncio.gather(win_icon_thread(), start())
+    await asyncio.gather(
+        win_icon_thread(),
+        start(),
+    )
 
 
 def init():

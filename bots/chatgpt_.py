@@ -104,13 +104,14 @@ embedding_fn = OpenAIEmbeddings().embed_query
 vectorstore = FAISS(embedding_fn, index, InMemoryDocstore({}), {})
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=1))
 vector_memory = VectorStoreRetrieverMemory(retriever=retriever)
-vector_memory.save_context({"input": "你是我的私人助手，你的名字是“Sero”"}, {"output": "ok"})
+vector_memory.save_context({"input": "你的名字是“Sero”"}, {"output": "ok"})
 
 # 提示词
 prompt = ConversationalAgent.create_prompt(
     tools,
-    prefix="""Please play the role of an AI companion (Do not reveal your role). As a friend to humans,reply as short you can and please reply in Chinese. You can use the following tools:""",
-    suffix="""Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.] [Remember if the "Human: " sometimes delivers illogical text (as noise), please output "None"]
+    prefix=config["ChatGPT"]["prefix_prompt"]
+    + """Please reply as short you can and in Chinese. You can use the following tools:""",
+    suffix="""Begin! [Remember try not to use 'search(serpapi)' as much as possible!] [Remember respond briefly in Chinese, but use English when using tools.] [Remember if the "Human: " sometimes delivers illogical text (as noise) or if you don't understand what human mean. please output "None"]
 
 Known entity information: {entity_store}
 {VectorDB_history}
@@ -128,8 +129,7 @@ Human: {input}
     ],
 )
 
-
-llm_chain = LLMChain(llm=chat, prompt=prompt, verbose=config["verbose"])
+llm_chain = LLMChain(llm=chat, prompt=prompt, verbose=config["ChatGPT"]["verbose"])
 agent = ConversationalAgent(llm_chain=llm_chain, tools=tools)
 agent_executor = AgentExecutor.from_agent_and_tools(
     agent=agent,
@@ -445,3 +445,50 @@ def load_memory():
         except Exception as e:
             logger.error(Back.RED + "An error occurred: " + str(e) + Style.RESET_ALL)
             raise
+
+
+def active_conversation():
+    global total_coast, total_coin
+    prompt = PromptTemplate(
+        template=config["ChatGPT"]["prefix_prompt"]
+        + '''现在请结合"previous conversation"开始与我闲聊(例如：嗨，最近怎么样)，不要输出如：好的/当然等类似的词语, Known entity information: {entity_store}
+        Relevant pieces of previous conversation: {chat_history}
+        输出：''',
+        input_variables=["chat_history", "entity_store"],
+    )
+
+    llm_chain = LLMChain(llm=chat, prompt=prompt, verbose=config["ChatGPT"]["verbose"])
+
+    try:
+        with get_openai_callback() as cb:
+            response = llm_chain.run(
+                chat_history=memory.load_memory_variables(memory.chat_memory.messages)[
+                    "history"
+                ],
+                entity_store=memory_entity.entity_store.default_factory.store,
+            )
+            # 花费计算
+            coast = cb.total_cost
+            total_coast += coast
+            coin = (
+                math.floor(
+                    (
+                        math.floor(cb.prompt_tokens * 3 / 8)
+                        + math.floor(cb.completion_tokens / 2)
+                    )
+                )
+                * 0.4
+            ) + 1
+            total_coin += coin
+
+            logger.info(
+                Fore.YELLOW
+                + f"coast {round(total_coast,3)}￥, coast coins {int(coin)} - total {int(total_coin)}, Spend prompt: {cb.prompt_tokens} tokens | completion: {cb.completion_tokens} tokens"
+                + Fore.RESET
+            )
+        memory.save_context(
+            {"input": "请结合 previous conversation 开始闲聊"}, {"output": response}
+        )
+    except ValueError as e:
+        raise Exception(str(e))
+    return response

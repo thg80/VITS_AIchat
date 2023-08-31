@@ -1,34 +1,37 @@
 {
-    "input_mode": 1,
+    "input_mode": 0,
     "bot": "ChatGPT",
-    "verbose": true,
     "hotkey": "ctrl+t",
+    "reply_window": true,
     "Poe": {
         "token": "",
         "bot": "capybara",
         "proxy": "http://127.0.0.1:7890"
     },
     "ChatGPT": {
-        "url": "https://aigptx.top/v1",
+        "url": "",
         "api-key": "",
         "serpapi-key": "",
         "openweathermap-api-key": "",
+        "verbose": true,
         "model": "gpt-3.5-turbo",
-        "MaxTokens": 512,
-        "temperature": 0.5,
-        "save_vector_memory": false
+        "MaxTokens": 1024,
+        "temperature": 0.7,
+        "save_vector_memory": false,
+        "prefix_prompt": "Please play the role of an AI companion (Do not reveal your role(do not say you is an ai))."
     },
     "Vic": {
         "vitsNoiseScale": 0.6,
         "vitsNoiseScaleW": 0.668,
         "vitsLengthScale": 0.7,
-        "speaker_id": 165,
+        "speaker_id": 120,
         "model_path": "./model/Genshin",
         "checkpoint_model": "/G_953000.pth"
     },
     "QuickLaunch": {
         "网易云": "D://CloudMusic/cloudmusic.exe",
         "浏览器": "C://Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+        "Steam": "D://Steam/steam.exe",
         "B站网页": "https://www.bilibili.com/",
         "哔哩哔哩网页": "https://www.bilibili.com/"
     }

@@ -1,5 +1,4 @@
 import collections
-import logging
 import signal
 import sys
 import time
@@ -83,6 +82,7 @@ def audio_to_text(path: str):
 
 
 def listen(audio_path: str):
+    main.listening = True
     stream = pa.open(
         format=FORMAT,
         channels=CHANNELS,
@@ -141,6 +141,7 @@ def listen(audio_path: str):
         stream.start_stream()
 
         while not got_a_sentence and not leave:
+            main.event.wait()
             chunk = stream.read(CHUNK_SIZE)
             # add WangS
             raw_data.extend(array('h', chunk))
@@ -204,3 +205,4 @@ def stream_stop():
     global leave, got_a_sentence
     got_a_sentence = False
     leave = False
+    main.listening = False

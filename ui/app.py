@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 
 main = sys.modules["__main__"]
-if_show = True
+if_show = main.config["reply_window"]
 
 
 def open_setting(icon, item):
@@ -49,9 +49,12 @@ def text_send_thread(text):
         main.logger.info("window is hidden")
     else:
         if window.isHidden():
+            time.sleep(1)
             window.show()
+            time.sleep(0.5)
         window.set_lyric(text)
-        print(len(text) * 0.5)
+        print(len(text) * 0.5, end="")
+        print(" s")
 
         timer = threading.Timer((len(text) * 0.5), window.hide)
         timer.start()
@@ -66,26 +69,6 @@ def close_reply_window(app):
     global window
     window.close()
     app.quit()
-
-
-# async def icon_thread():
-#     # ?! 貌似会直接运行 且 window会堵塞进程
-#     global window, app, loop
-
-#     loop = asyncio.get_event_loop()
-#     loop.run_until_complete(window_thread(window, app))
-
-#     print("icon thread")
-#     image = Image.open("./resource/icon.png")
-#     menu = (
-#         pystray.MenuItem("设置", open_setting),
-#         pystray.MenuItem("暂停/恢复 输入", pause_a_re),
-#         pystray.MenuItem("显示回复悬浮窗", show_or_off_reply_window),
-#         pystray.MenuItem("退出", lambda icon, item: icon.stop()),
-#     )
-#     icon = pystray.Icon("VitsAssistant", image, "VitsAssistant", menu)
-
-#     await asyncio.to_thread(icon_run, icon)
 
 
 async def win_icon_thread():
@@ -106,13 +89,7 @@ async def win_icon_thread():
     )
 
 
-def window_run(window):
-    window.show()
-    window.activateWindow()
-
-
 def icon_run(icon):
-    print("icon run")
     icon.run()
 
 
@@ -126,5 +103,8 @@ def pause_a_re():
 
 # 创建系统图标
 def ui_init():
-    global app, window
+    global window, if_show
     window = Chat_Window()
+    if if_show:
+        window.show()
+        window.hide()

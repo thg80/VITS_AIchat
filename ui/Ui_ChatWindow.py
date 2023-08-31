@@ -8,6 +8,7 @@ from PyQt5.QtGui import (
     QFontMetrics,
     QPainterPath,
     QRegion,
+    QGuiApplication,
 )
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QDesktopWidget, QWidget
 from ui.window_effect import WindowEffect
@@ -24,14 +25,13 @@ class Chat_Window(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.init_ui()
-
         self.lyrics = ""
         self.desktop = QDesktopWidget()
         self.screen_width = self.desktop.screenGeometry().width()
         self.screen_height = self.desktop.screenGeometry().height()
         self.window_width = self.width()
         self.window_height = self.height()
+        self.init_ui()
 
     def init_ui(self):
         print("初始化窗口")
@@ -47,7 +47,7 @@ class Chat_Window(QMainWindow):
         # self.windowEffect.setAcrylicEffect(int(self.winId()), gradientColor="F2F2F230")  # F2F2F2F0亮色
         self.windowEffect.setAeroEffect(int(self.winId()))
 
-        self.setGeometry(100, 100, 400, 100)
+        self.setGeometry((self.screen_width - 400), (self.screen_height - 100), 100, 50)
 
         # ?(没效果) 设置窗口圆角
         # self.setMask(self.create_rounded_rect_mask(12))
@@ -57,20 +57,51 @@ class Chat_Window(QMainWindow):
         self.drag_widget.setGeometry(0, 0, self.width(), self.height())
         self.drag_widget.setObjectName("DragWidget")
         self.drag_widget.setStyleSheet(
-            "#DragWidget { background-color: rgba(0, 0, 0, 0.005); border-radius: 12px;}"
+            "#DragWidget { background-color: rgba(0, 0, 0, 0.01); border-radius: 16px;}"
         )
 
         self.lyric_label = QLabel(self)
         self.lyric_label.setAlignment(Qt.AlignCenter)
-        self.lyric_label.setFont(QFont("微软雅黑", 14))
+        self.lyric_label.setFont(QFont("微软雅黑", 13))
         self.lyric_label.setStyleSheet("color: rgb(255, 255, 255);")
 
         self.timer = QTimer(self)
+
+    def get_window_bottom_color(self):
+        '''获取窗口下方区域的颜色值或其他方式进行判断
+        这里假设窗口下方区域的颜色是通过获取屏幕底部中央像素点的颜色值来确定的
+        可以使用GUI库提供的功能来获取屏幕底部中央像素点的颜色值
+        例如，使用PyQt5的QScreen类来获取屏幕底部中央像素点的颜色值'''
+
+        screen = QGuiApplication.primaryScreen()
+        pixmap = screen.grabWindow(0)
+        window_rect = self.geometry()
+        pixel = pixmap.toImage().pixel(
+            (window_rect.x() + window_rect.width()) // 2,
+            (window_rect.y() + window_rect.height()) - 1,
+        )
+        color = QColor(pixel)
+        # 将颜色值转换为RGB颜色空间的值
+        r, g, b, _ = color.getRgb()
+        # 计算颜色的亮度值
+        brightness = (r * 299 + g * 587 + b * 114) / 1000
+
+        # 判断颜色值
+        if brightness > 168:
+            self.lyric_label.setStyleSheet("color: black;")
+        elif color == QColor("black"):
+            self.lyric_label.setStyleSheet("color: white;")
+        else:
+            self.lyric_label.setStyleSheet("color: white;")
 
     # * -------------------------------------------------------------------------
     # * 设置文本内容
     def set_lyric(self, lyric):
         print("更新文本" + lyric)
+
+        self.get_window_bottom_color()
+        # 根据窗口下方的颜色条件，更改lyric_label的字体颜色
+
         self.lyrics = lyric
         self.lyric_label.setText(self.lyrics)
         # 获取文本内容行数
